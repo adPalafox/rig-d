@@ -1,0 +1,406 @@
+:root {
+  --bg: #f4e8cc;
+  --paper: rgba(255, 249, 237, 0.92);
+  --ink: #1e1b16;
+  --muted: #5e574d;
+  --red: #d14b32;
+  --blue: #2075c7;
+  --gold: #db9f17;
+  --green: #2e9159;
+  --shadow: 0 14px 40px rgba(76, 47, 8, 0.18);
+  --display: "Marker Felt", "Chalkboard SE", "Comic Sans MS", cursive;
+  --body: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 30%),
+    radial-gradient(circle at 90% 10%, rgba(219, 159, 23, 0.18), transparent 24%),
+    linear-gradient(180deg, #f9f1db 0%, #efdfb5 55%, #ead2a7 100%);
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--body);
+  min-height: 100vh;
+  background-image:
+    linear-gradient(rgba(30, 27, 22, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 27, 22, 0.045) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.page-shell {
+  width: min(1200px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.hero-card,
+.panel,
+.arena-card,
+.timeline-card,
+.score-card,
+.cta-card {
+  background: var(--paper);
+  border: 2px solid rgba(30, 27, 22, 0.08);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+
+.hero-card,
+.panel,
+.arena-card,
+.timeline-card,
+.score-card,
+.cta-card {
+  padding: 24px;
+}
+
+.eyebrow,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(30, 27, 22, 0.08);
+  font-size: 0.88rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 18px 0 12px;
+  font-family: var(--display);
+  font-size: clamp(2.4rem, 4vw, 4.4rem);
+  line-height: 0.96;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: 1.08rem;
+  line-height: 1.6;
+}
+
+.actions,
+.button-row,
+.form-actions,
+.room-meta,
+.agent-grid,
+.timeline,
+.score-grid,
+.event-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.actions,
+.button-row {
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+}
+
+.button,
+.ghost-button {
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 18px;
+  font-weight: 700;
+}
+
+.button {
+  background: var(--ink);
+  color: #fff8ea;
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  border: 1px solid rgba(30, 27, 22, 0.12);
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.panel--wide {
+  grid-column: span 7;
+}
+
+.panel--side {
+  grid-column: span 5;
+}
+
+.room-shell {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.side-stack {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 24px;
+}
+
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.status-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px dashed rgba(30, 27, 22, 0.18);
+  font-size: 0.9rem;
+}
+
+.room-meta,
+.agent-grid,
+.score-grid,
+.event-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.meta-box,
+.score-box,
+.agent-card,
+.turn-card,
+.event-card,
+.form-field {
+  border-radius: 20px;
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.meta-box,
+.score-box,
+.turn-card,
+.event-card,
+.form-field,
+.agent-card {
+  padding: 16px;
+}
+
+.meta-box small,
+.score-box small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.meta-box strong,
+.score-box strong {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.agent-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.agent-card::before {
+  content: "";
+  position: absolute;
+  right: -22px;
+  top: -26px;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  opacity: 0.11;
+}
+
+.agent-card--Bruiser::before {
+  background: var(--red);
+}
+
+.agent-card--Gremlin::before {
+  background: var(--green);
+}
+
+.agent-card--Scholar::before {
+  background: var(--blue);
+}
+
+.agent-card--Showman::before {
+  background: var(--gold);
+}
+
+.agent-stickman {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 10px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-field {
+  display: grid;
+  gap: 8px;
+}
+
+.form-field label {
+  font-weight: 700;
+}
+
+.form-field input,
+.form-field textarea {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  min-height: 42px;
+  outline: none;
+  color: var(--ink);
+}
+
+.form-field textarea {
+  min-height: 86px;
+}
+
+.turn-card::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  opacity: 0.18;
+}
+
+.turn-card,
+.event-card {
+  position: relative;
+}
+
+.turn-card h4,
+.event-card h4 {
+  margin: 0 0 8px 26px;
+}
+
+.turn-card p,
+.event-card p,
+.panel p,
+.panel li,
+.timeline-card p,
+.score-card p,
+.muted {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(30, 27, 22, 0.08);
+  margin: 18px 0;
+}
+
+.score-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.score-value--positive {
+  color: var(--green);
+}
+
+.score-value--negative {
+  color: var(--red);
+}
+
+.inline-code {
+  font-family: "SFMono-Regular", "Consolas", monospace;
+  font-size: 0.95rem;
+}
+
+.error-box,
+.success-box {
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.error-box {
+  background: rgba(209, 75, 50, 0.14);
+  color: #812512;
+}
+
+.success-box {
+  background: rgba(46, 145, 89, 0.14);
+  color: #1f5b38;
+}
+
+@media (max-width: 980px) {
+  .hero,
+  .room-shell,
+  .section-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel--wide,
+  .panel--side {
+    grid-column: span 1;
+  }
+
+  .side-stack {
+    position: static;
+  }
+
+  .room-meta,
+  .agent-grid,
+  .score-grid,
+  .event-grid {
+    grid-template-columns: 1fr;
+  }
+}
