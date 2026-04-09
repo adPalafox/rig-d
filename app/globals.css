@@ -78,6 +78,11 @@ ul {
   padding: var(--space-8) 0 72px;
 }
 
+.landing-shell {
+  display: grid;
+  gap: 40px;
+}
+
 .page-shell--room {
   width: min(1280px, calc(100vw - 32px));
 }
@@ -128,6 +133,285 @@ ul {
 .hero-card {
   display: grid;
   gap: var(--space-6);
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.8fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.hero-card--landing {
+  gap: 40px;
+  position: relative;
+  overflow: hidden;
+  min-height: 100%;
+}
+
+.hero-card--landing::after {
+  content: "";
+  position: absolute;
+  inset: auto -80px -120px auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(219, 159, 23, 0.18), transparent 68%);
+  pointer-events: none;
+}
+
+.hero-copy,
+.section-heading,
+.entry-module__header,
+.game-notes,
+.match-rhythm,
+.arena-fighter__label,
+.roster-showcase__copy {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.loop-strip,
+.roster-showcase-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.loop-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.loop-step,
+.game-note,
+.match-beat {
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background: rgba(255, 255, 255, 0.58);
+  padding: var(--space-4);
+}
+
+.loop-step strong,
+.game-note strong,
+.match-beat strong,
+.roster-showcase__copy h3 {
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.section-heading p,
+.entry-module__header p {
+  max-width: 56ch;
+}
+
+.hero-copy--landing {
+  gap: 18px;
+  max-width: 40rem;
+}
+
+.hero-actions--subtle .ghost-button {
+  padding: 12px 16px;
+}
+
+.entry-module {
+  display: grid;
+  gap: 20px;
+  padding: var(--space-8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 26%),
+    var(--paper);
+}
+
+.entry-module--compact {
+  align-self: stretch;
+}
+
+.entry-module__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.entry-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.cta-card--entry {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.cta-card--secondary {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.entry-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.entry-divider span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px dashed rgba(30, 27, 22, 0.16);
+  background: rgba(255, 255, 255, 0.74);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.arena-scene {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5), transparent 46%),
+    linear-gradient(180deg, rgba(30, 27, 22, 0.02), rgba(30, 27, 22, 0.08)),
+    rgba(255, 248, 234, 0.75);
+  overflow: hidden;
+}
+
+.arena-scene::before {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(30, 27, 22, 0.08);
+  filter: blur(10px);
+}
+
+.arena-scene__tags,
+.trait-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.arena-scene__fighters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.arena-fighter {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  text-align: center;
+}
+
+.arena-fighter--favorite {
+  transform: translateY(16px);
+}
+
+.arena-fighter__label strong {
+  font-size: 1.3rem;
+}
+
+.arena-fighter__label span,
+.arena-scene__floor {
+  color: var(--muted);
+}
+
+.arena-scene__floor {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+  padding-top: var(--space-3);
+  border-top: 1px dashed rgba(30, 27, 22, 0.12);
+}
+
+.roster-showcase-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.landing-proof {
+  margin-top: 0;
+  align-items: start;
+}
+
+.proof-grid,
+.details-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.proof-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.proof-card strong {
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.landing-detail-card {
+  align-content: start;
+  gap: 16px;
+}
+
+.landing-roster {
+  gap: 28px;
+}
+
+.roster-showcase {
+  grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.roster-showcase__visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.72), transparent 48%),
+    rgba(255, 255, 255, 0.42);
+}
+
+.panel--match {
+  gap: var(--space-6);
+}
+
+.panel--details {
+  gap: 20px;
+}
+
+.title--details {
+  font-size: clamp(2.4rem, 4vw, 4rem);
+}
+
+.game-notes,
+.match-rhythm {
+  grid-template-columns: 1fr;
 }
 
 .hero-actions,
@@ -378,8 +662,11 @@ ul {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(380px, 420px);
   gap: var(--space-6);
-  margin-top: var(--space-6);
   align-items: start;
+}
+
+.room-summary + .room-shell {
+  margin-top: var(--space-6);
 }
 
 .side-stack {
@@ -656,6 +943,79 @@ ul {
   height: 92px;
 }
 
+.agent-stickman--scene {
+  width: 220px;
+  height: 220px;
+}
+
+.agent-stickman--roster {
+  width: 150px;
+  height: 150px;
+}
+
+.agent-stickman--hero {
+  width: 180px;
+  height: 180px;
+}
+
+.agent-stickman--duel {
+  width: 132px;
+  height: 132px;
+}
+
+.agent-stickman--reveal {
+  width: 150px;
+  height: 150px;
+}
+
+.agent-stickman--loser {
+  opacity: 0.68;
+}
+
+.agent-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.8), transparent 50%),
+    rgba(255, 255, 255, 0.42);
+}
+
+.versus-scene {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.08);
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.versus-scene__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(30, 27, 22, 0.92);
+  color: #fff8ea;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reveal-banner__scene {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: var(--space-3);
+  align-items: end;
+}
+
 .metric-row,
 .score-grid,
 .detail-grid {
@@ -772,6 +1132,16 @@ ul {
     grid-template-columns: 1fr;
   }
 
+  .landing-hero,
+  .entry-module__grid,
+  .roster-showcase,
+  .roster-showcase-grid,
+  .loop-strip,
+  .proof-grid,
+  .details-flow {
+    grid-template-columns: 1fr;
+  }
+
   .panel--wide,
   .panel--side {
     grid-column: span 1;
@@ -784,6 +1154,15 @@ ul {
 
   .hero-points {
     grid-template-columns: 1fr;
+  }
+
+  .entry-divider {
+    min-height: auto;
+    padding: var(--space-2) 0;
+  }
+
+  .arena-scene__fighters {
+    grid-template-columns: 1fr 1fr;
   }
 
   .side-stack {
@@ -800,6 +1179,7 @@ ul {
   }
 
   .hero-card,
+  .entry-module,
   .cta-card,
   .panel,
   .room-summary,
@@ -813,7 +1193,11 @@ ul {
   .metric-row,
   .score-grid,
   .detail-grid,
-  .phase-track {
+  .phase-track,
+  .arena-scene__fighters,
+  .reveal-banner__scene,
+  .proof-grid,
+  .details-flow {
     grid-template-columns: 1fr;
   }
 
@@ -838,7 +1222,8 @@ ul {
   .actions,
   .button-row,
   .form-actions,
-  .summary-actions {
+  .summary-actions,
+  .arena-scene__floor {
     flex-direction: column;
   }
 
@@ -846,5 +1231,14 @@ ul {
   .ghost-button {
     width: 100%;
     justify-content: center;
+  }
+
+  .arena-fighter--favorite {
+    transform: none;
+  }
+
+  .agent-stickman--scene {
+    width: 180px;
+    height: 180px;
   }
 }

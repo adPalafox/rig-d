@@ -113,6 +113,10 @@ export function RoomClient({ initialSnapshot }: Props) {
   const showEventLog = resolving || matchResolved || stageKey === "abandoned";
   const turnProgress = Math.min(snapshot.turnLog.length, 6);
   const winner = snapshot.players.find((player) => player.id === snapshot.judgeResult?.winnerPlayerId) ?? null;
+  const viewerAgent = viewer?.agent ?? null;
+  const opponentAgent = opponent?.agent ?? null;
+  const viewerColor = viewerAgent?.bandanaColor ?? "#1e1b16";
+  const opponentColor = opponentAgent?.bandanaColor ?? "#5e574d";
 
   const phaseCopy = {
     lobby: {
@@ -184,49 +188,50 @@ export function RoomClient({ initialSnapshot }: Props) {
 
   return (
     <div className="page-shell page-shell--room">
-      <section className="surface surface--secondary room-summary">
-        <div className="room-summary__header">
-          <div>
-            <span className="eyebrow">Private Room</span>
-            <h1 className="room-title">Room {snapshot.room.code}</h1>
-            <p className="summary-copy">{snapshot.match.topic.prompt}</p>
-          </div>
-          <div className="status-strip">
-            <span className="status-chip">Phase: {phaseCopy.label}</span>
-            <span className="status-chip">
-              Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
-            </span>
-            {coachingOpen ? <span className="status-chip status-chip--accent">Timer: {secondsLeft}s</span> : null}
-          </div>
-        </div>
-
-        <div className="summary-grid">
-          <div className="summary-box summary-box--wide">
-            <small>Share link</small>
-            <strong className="inline-code room-link">{snapshot.room.shareUrl}</strong>
-            <div className="summary-actions">
-              <button className="ghost-button button--small" type="button" onClick={() => void copyShareLink()}>
-                Copy link
-              </button>
+      {stageKey === "lobby" ? (
+        <section className="surface surface--secondary room-summary">
+          <div className="room-summary__header">
+            <div>
+              <span className="eyebrow">Private Room</span>
+              <h1 className="room-title">Room {snapshot.room.code}</h1>
+              <p className="summary-copy">{snapshot.match.topic.prompt}</p>
+            </div>
+            <div className="status-strip">
+              <span className="status-chip">Phase: {phaseCopy.label}</span>
+              <span className="status-chip">
+                Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
+              </span>
             </div>
           </div>
-          <div className="summary-box">
-            <small>Topic</small>
-            <strong>{snapshot.match.topic.title}</strong>
-            <p>{snapshot.match.topic.tags.join(" · ")}</p>
+
+          <div className="summary-grid">
+            <div className="summary-box summary-box--wide">
+              <small>Share link</small>
+              <strong className="inline-code room-link">{snapshot.room.shareUrl}</strong>
+              <div className="summary-actions">
+                <button className="ghost-button button--small" type="button" onClick={() => void copyShareLink()}>
+                  Copy link
+                </button>
+              </div>
+            </div>
+            <div className="summary-box">
+              <small>Topic</small>
+              <strong>{snapshot.match.topic.title}</strong>
+              <p>{snapshot.match.topic.tags.join(" · ")}</p>
+            </div>
+            <div className="summary-box">
+              <small>You</small>
+              <strong>{viewer?.name ?? "Observer"}</strong>
+              <p>{viewer?.ready ? "Ready locked." : "Not ready yet."}</p>
+            </div>
+            <div className="summary-box">
+              <small>Opponent</small>
+              <strong>{opponent?.name ?? "Open slot"}</strong>
+              <p>{opponent ? (opponent.ready ? "Ready locked." : "Not ready yet.") : "Waiting to join."}</p>
+            </div>
           </div>
-          <div className="summary-box">
-            <small>You</small>
-            <strong>{viewer?.name ?? "Observer"}</strong>
-            <p>{viewer?.ready ? "Ready locked." : "Not ready yet."}</p>
-          </div>
-          <div className="summary-box">
-            <small>Opponent</small>
-            <strong>{opponent?.name ?? "Open slot"}</strong>
-            <p>{opponent ? (opponent.ready ? "Ready locked." : "Not ready yet.") : "Waiting to join."}</p>
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <div className="room-shell">
         <main className="stage-stack">
@@ -307,7 +312,15 @@ export function RoomClient({ initialSnapshot }: Props) {
               <div className="coach-workspace">
                 <div className="coach-agent-card">
                   <div className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}>
-                    <AgentStickman color={viewer.agent?.bandanaColor ?? "#1e1b16"} />
+                    <div className="agent-stage">
+                      <AgentStickman
+                        className="agent-stickman agent-stickman--hero"
+                        color={viewer.agent?.bandanaColor ?? "#1e1b16"}
+                        variant={viewer.agent?.id ?? "Bruiser"}
+                        pose={viewer.submittedCoaching ? "victory" : "duel"}
+                        emphasis="spotlight"
+                      />
+                    </div>
                     <div className="agent-card__header">
                       <div>
                         <small>Your fighter</small>
@@ -428,6 +441,24 @@ export function RoomClient({ initialSnapshot }: Props) {
               <div className="stage-content">
                 <div className="stage-subpanel">
                   <h3 className="section-title">Arena progress</h3>
+                  <div className="versus-scene versus-scene--compact">
+                    <AgentStickman
+                      className="agent-stickman agent-stickman--duel"
+                      color={viewerColor}
+                      variant={viewerAgent?.id ?? "Bruiser"}
+                      pose="duel"
+                      emphasis="ring"
+                    />
+                    <div className="versus-scene__badge">vs</div>
+                    <AgentStickman
+                      className="agent-stickman agent-stickman--duel"
+                      color={opponentColor}
+                      variant={opponentAgent?.id ?? "Showman"}
+                      pose="duel"
+                      emphasis="ring"
+                      flipped
+                    />
+                  </div>
                   <div className="metric-row">
                     <div className="metric-box">
                       <small>Turns resolved</small>
@@ -454,6 +485,27 @@ export function RoomClient({ initialSnapshot }: Props) {
             {stageKey === "reveal" && snapshot.judgeResult ? (
               <div className="reveal-stack">
                 <div className="reveal-banner">
+                  <div className="reveal-banner__scene">
+                    <AgentStickman
+                      className="agent-stickman agent-stickman--reveal"
+                      color={
+                        snapshot.players.find((player) => player.id === winner?.id)?.agent?.bandanaColor ?? viewerColor
+                      }
+                      variant={winner?.agent?.id ?? viewerAgent?.id ?? "Bruiser"}
+                      pose="victory"
+                      emphasis="burst"
+                    />
+                    <AgentStickman
+                      className="agent-stickman agent-stickman--reveal agent-stickman--loser"
+                      color={
+                        snapshot.players.find((player) => player.id !== winner?.id)?.agent?.bandanaColor ?? opponentColor
+                      }
+                      variant={snapshot.players.find((player) => player.id !== winner?.id)?.agent?.id ?? opponentAgent?.id ?? "Gremlin"}
+                      pose="slump"
+                      emphasis="ring"
+                      flipped
+                    />
+                  </div>
                   <div>
                     <small>Winner</small>
                     <h3>{winner?.name ?? "Unknown"}</h3>
