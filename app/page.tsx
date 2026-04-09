@@ -1,44 +1,67 @@
 import Link from "next/link";
 import { CreateRoomForm } from "@/components/CreateRoomForm";
+import { HomeJoinForm } from "@/components/HomeJoinForm";
 
 export default function HomePage() {
   return (
     <main className="page-shell">
       <section className="hero">
-        <div className="hero-card">
+        <div className="surface surface--primary hero-card">
           <span className="eyebrow">Rig D Agent</span>
-          <h1 className="title">The smartest player isn&apos;t the AI. It&apos;s you.</h1>
+          <h1 className="title">Rig the underdog. Steal the room.</h1>
           <p className="subtitle">
-            Coach flawed stick-fighter agents through a live 1v1 debate duel. You do not win by drafting the best bot.
-            You win by rigging the weakest one into an upset.
+            Coach a flawed AI stick-fighter through a fast private debate duel. The fun is not drafting the best bot.
+            The fun is forcing a weaker one to outperform expectation.
           </p>
-          <div style={{ height: 20 }} />
-          <div className="actions">
+          <div className="hero-actions">
             <Link className="ghost-button" href="#how-it-works">
               See the loop
             </Link>
-            <Link className="ghost-button" href="#agents">
+            <Link className="ghost-button" href="#archetypes">
               Meet the fighters
             </Link>
           </div>
-        </div>
-        <div className="cta-card">
-          <div>
-            <span className="pill">Private Beta MVP</span>
-            <h2 style={{ margin: "14px 0 8px", fontFamily: "var(--display)", fontSize: "2rem" }}>
-              Start a room
-            </h2>
-            <p className="muted">
-              One topic. Two players. Three turns each. One reveal that shows who actually rigged their agent best.
-            </p>
+          <div className="hero-points">
+            <div className="summary-box">
+              <small>Format</small>
+              <strong>Private 1v1 rooms</strong>
+              <p>One opponent, one topic, one reveal.</p>
+            </div>
+            <div className="summary-box">
+              <small>Pressure</small>
+              <strong>60-second coaching</strong>
+              <p>You only get one short window to shape the agent.</p>
+            </div>
+            <div className="summary-box">
+              <small>Payoff</small>
+              <strong>Rig Score reveal</strong>
+              <p>The winner and the best overperformance are both visible.</p>
+            </div>
           </div>
-          <CreateRoomForm />
+        </div>
+        <div className="cta-stack">
+          <div className="surface surface--secondary cta-card">
+            <div className="cta-copy">
+              <span className="pill">Start Fast</span>
+              <h2 className="section-title">Create a private room</h2>
+              <p className="muted">Start the arena, claim your side, and send one invite link.</p>
+            </div>
+            <CreateRoomForm />
+          </div>
+          <div className="surface surface--utility cta-card">
+            <div className="cta-copy">
+              <span className="pill">Have A Code?</span>
+              <h2 className="section-title">Join an existing room</h2>
+              <p className="muted">Enter the invite code and step straight into the matchup.</p>
+            </div>
+            <HomeJoinForm />
+          </div>
         </div>
       </section>
 
       <section className="section-grid" id="how-it-works">
-        <article className="panel panel--wide">
-          <h2>Core Loop</h2>
+        <article className="surface surface--secondary panel panel--wide">
+          <h2 className="section-title">Core Loop</h2>
           <ul className="list">
             <li>Two players enter a private room and ready up.</li>
             <li>Each player gets a different flawed agent with visible traits and hidden modifiers.</li>
@@ -47,8 +70,8 @@ export default function HomePage() {
             <li>The system reveals both the winner and the player who outperformed expectation hardest.</li>
           </ul>
         </article>
-        <article className="panel panel--side">
-          <h2>Why It Lands</h2>
+        <article className="surface surface--utility panel panel--side">
+          <h2 className="section-title">Why It Lands</h2>
           <p>
             A strong model winning feels expected. A weak model winning feels stolen. The reveal tracks actual
             performance against expected performance so the underdog payoff is legible.
@@ -56,9 +79,9 @@ export default function HomePage() {
         </article>
       </section>
 
-      <section className="section-grid" id="agents">
-        <article className="panel panel--wide">
-          <h2>Agent Archetypes</h2>
+      <section className="section-grid" id="archetypes">
+        <article className="surface surface--secondary panel panel--wide">
+          <h2 className="section-title">Agent Archetypes</h2>
           <div className="agent-grid">
             <div className="agent-card agent-card--Bruiser">
               <h3>Bruiser</h3>
@@ -78,8 +101,8 @@ export default function HomePage() {
             </div>
           </div>
         </article>
-        <article className="panel panel--side">
-          <h2>MVP Rules</h2>
+        <article className="surface surface--utility panel panel--side">
+          <h2 className="section-title">MVP Rules</h2>
           <ul className="list">
             <li>Only private 1v1 rooms.</li>
             <li>Only one mode: Debate Duel.</li>

@@ -47,7 +47,7 @@ export function CreateRoomForm() {
       </div>
       {error ? <div className="error-box">{error}</div> : null}
       <div className="form-actions">
-        <button className="button" type="submit" disabled={loading}>
+        <button className="button button--full" type="submit" disabled={loading}>
           {loading ? "Building room..." : "Create a private room"}
         </button>
       </div>

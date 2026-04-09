@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AgentStickman } from "@/components/AgentStickman";
-import { MatchSnapshot } from "@/lib/types";
+import { MatchSnapshot, MatchState } from "@/lib/types";
 import { countdownRemaining } from "@/lib/utils";
 
 type Props = {
@@ -17,6 +17,8 @@ type CoachingDraft = {
   secretNote: string;
 };
 
+type StageKey = "lobby" | "coaching" | "resolving" | "reveal" | "abandoned";
+
 const initialDraft: CoachingDraft = {
   gamePlan: "",
   tone: "",
@@ -24,6 +26,29 @@ const initialDraft: CoachingDraft = {
   avoidThisMistake: "",
   secretNote: "",
 };
+
+const resolvingStates: MatchState[] = ["coaching_locked", "executing_match", "judging"];
+const revealStates: MatchState[] = ["reveal_ready", "completed"];
+
+function formatStateLabel(state: string) {
+  return state.replaceAll("_", " ");
+}
+
+function getStageKey(state: MatchState): StageKey {
+  if (state === "abandoned") return "abandoned";
+  if (state === "coaching_open") return "coaching";
+  if (resolvingStates.includes(state)) return "resolving";
+  if (revealStates.includes(state)) return "reveal";
+  return "lobby";
+}
+
+function getStageOrder(stage: StageKey) {
+  if (stage === "abandoned") return -1;
+  if (stage === "lobby") return 0;
+  if (stage === "coaching") return 1;
+  if (stage === "resolving") return 2;
+  return 3;
+}
 
 export function RoomClient({ initialSnapshot }: Props) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -40,8 +65,14 @@ export function RoomClient({ initialSnapshot }: Props) {
   }, [initialSnapshot]);
 
   useEffect(() => {
+    setDraft(initialDraft);
+    setError("");
+    setMessage("");
+  }, [snapshot.match.id]);
+
+  useEffect(() => {
     const interval = window.setInterval(async () => {
-      const response = await fetch(`/api/matches/${initialSnapshot.match.id}`, {
+      const response = await fetch(`/api/matches/${snapshot.match.id}`, {
         cache: "no-store",
       });
       if (!response.ok) return;
@@ -49,15 +80,18 @@ export function RoomClient({ initialSnapshot }: Props) {
       setSnapshot(json);
       setSecondsLeft(countdownRemaining(json.match.coachingDeadlineAt));
     }, 1200);
+
     return () => window.clearInterval(interval);
-  }, [initialSnapshot.match.id]);
+  }, [snapshot.match.id]);
 
   useEffect(() => {
     setSecondsLeft(countdownRemaining(snapshot.match.coachingDeadlineAt));
     if (!snapshot.match.coachingDeadlineAt) return;
+
     const interval = window.setInterval(() => {
       setSecondsLeft(countdownRemaining(snapshot.match.coachingDeadlineAt));
     }, 250);
+
     return () => window.clearInterval(interval);
   }, [snapshot.match.coachingDeadlineAt]);
 
@@ -69,14 +103,55 @@ export function RoomClient({ initialSnapshot }: Props) {
     () => snapshot.players.find((player) => player.id !== snapshot.viewerPlayerId) ?? null,
     [snapshot],
   );
-  const canReady = snapshot.match.state === "waiting_for_players" || snapshot.match.state === "agent_assigned";
-  const coachingOpen = snapshot.match.state === "coaching_open";
-  const matchResolved = snapshot.match.state === "reveal_ready" || snapshot.match.state === "completed";
+
+  const stageKey = getStageKey(snapshot.match.state);
+  const canReady = stageKey === "lobby" && viewer !== null;
+  const coachingOpen = stageKey === "coaching";
+  const resolving = stageKey === "resolving";
+  const matchResolved = stageKey === "reveal";
+  const showTurnFeed = resolving || matchResolved;
+  const showEventLog = resolving || matchResolved || stageKey === "abandoned";
+  const turnProgress = Math.min(snapshot.turnLog.length, 6);
+  const winner = snapshot.players.find((player) => player.id === snapshot.judgeResult?.winnerPlayerId) ?? null;
+
+  const phaseCopy = {
+    lobby: {
+      label: "Lobby",
+      title: opponent ? "Get both coaches locked in" : "Waiting for the second player",
+      description: opponent
+        ? "Both players need to ready up before the arena assigns agents and opens coaching."
+        : "Share the room link, get your opponent in, then lock in when both sides are present.",
+    },
+    coaching: {
+      label: "Coaching",
+      title: viewer?.submittedCoaching ? "Your coaching is locked" : "Coach your fighter for the upset",
+      description: viewer?.submittedCoaching
+        ? "Your side is set. The room will move once the other coach locks in or the timer expires."
+        : "Give one clean plan, one pressure response, and one mistake to avoid. The best coaching is sharp, not crowded.",
+    },
+    resolving: {
+      label: "Arena Resolving",
+      title: "The match is unfolding",
+      description:
+        "The system is running opening, rebuttal, and closing turns, then judging the full exchange.",
+    },
+    reveal: {
+      label: "Reveal",
+      title: winner ? `${winner.name} won the room` : "The result is in",
+      description: snapshot.judgeResult?.reasonSummary ?? "The final score is ready for both sides.",
+    },
+    abandoned: {
+      label: "Match Interrupted",
+      title: "The room was abandoned during coaching",
+      description: "One player dropped for too long, so this round did not resolve.",
+    },
+  }[stageKey];
 
   async function runAction(path: string, body?: unknown) {
     setLoading(true);
     setError("");
     setMessage("");
+
     try {
       const response = await fetch(path, {
         method: "POST",
@@ -97,65 +172,466 @@ export function RoomClient({ initialSnapshot }: Props) {
     }
   }
 
+  async function copyShareLink() {
+    setError("");
+    try {
+      await navigator.clipboard.writeText(snapshot.room.shareUrl);
+      setMessage("Join link copied.");
+    } catch {
+      setError("Could not copy the join link.");
+    }
+  }
+
   return (
-    <div className="page-shell">
-      <div className="room-shell">
-        <aside className="side-stack">
-          <section className="panel">
+    <div className="page-shell page-shell--room">
+      <section className="surface surface--secondary room-summary">
+        <div className="room-summary__header">
+          <div>
             <span className="eyebrow">Private Room</span>
-            <h1 className="title" style={{ fontSize: "2.4rem" }}>
-              Room {snapshot.room.code}
-            </h1>
-            <p className="subtitle">Share this join link with your opponent and race to the reveal.</p>
-            <div className="room-meta">
-              <div className="meta-box">
-                <small>Join Link</small>
-                <strong className="inline-code">{snapshot.room.shareUrl}</strong>
-              </div>
-              <div className="meta-box">
-                <small>Topic</small>
-                <strong>{snapshot.match.topic.title}</strong>
-              </div>
-            </div>
-            <div className="status-strip">
-              <span className="status-chip">State: {snapshot.match.state.replaceAll("_", " ")}</span>
-              {coachingOpen ? <span className="status-chip">Coaching: {secondsLeft}s</span> : null}
-              {viewer ? <span className="status-chip">You: {viewer.name}</span> : null}
-            </div>
-            <div className="divider" />
-            {canReady && viewer ? (
-              <button
-                className="button"
-                onClick={() => void runAction(`/api/matches/${snapshot.match.id}/ready`)}
-                disabled={loading || viewer.ready}
-              >
-                {viewer.ready ? "Ready locked" : "I am ready"}
+            <h1 className="room-title">Room {snapshot.room.code}</h1>
+            <p className="summary-copy">{snapshot.match.topic.prompt}</p>
+          </div>
+          <div className="status-strip">
+            <span className="status-chip">Phase: {phaseCopy.label}</span>
+            <span className="status-chip">
+              Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
+            </span>
+            {coachingOpen ? <span className="status-chip status-chip--accent">Timer: {secondsLeft}s</span> : null}
+          </div>
+        </div>
+
+        <div className="summary-grid">
+          <div className="summary-box summary-box--wide">
+            <small>Share link</small>
+            <strong className="inline-code room-link">{snapshot.room.shareUrl}</strong>
+            <div className="summary-actions">
+              <button className="ghost-button button--small" type="button" onClick={() => void copyShareLink()}>
+                Copy link
               </button>
-            ) : null}
-            {matchResolved ? (
-              <button
-                className="ghost-button"
-                onClick={() => void runAction(`/api/rooms/${snapshot.room.id}/rematch`)}
-                disabled={loading}
-              >
-                Run it back
-              </button>
-            ) : null}
+            </div>
+          </div>
+          <div className="summary-box">
+            <small>Topic</small>
+            <strong>{snapshot.match.topic.title}</strong>
+            <p>{snapshot.match.topic.tags.join(" · ")}</p>
+          </div>
+          <div className="summary-box">
+            <small>You</small>
+            <strong>{viewer?.name ?? "Observer"}</strong>
+            <p>{viewer?.ready ? "Ready locked." : "Not ready yet."}</p>
+          </div>
+          <div className="summary-box">
+            <small>Opponent</small>
+            <strong>{opponent?.name ?? "Open slot"}</strong>
+            <p>{opponent ? (opponent.ready ? "Ready locked." : "Not ready yet.") : "Waiting to join."}</p>
+          </div>
+        </div>
+      </section>
+
+      <div className="room-shell">
+        <main className="stage-stack">
+          <section className="surface surface--primary stage-panel">
+            <div className="stage-panel__header">
+              <div>
+                <span className="eyebrow">{phaseCopy.label}</span>
+                <h2 className="stage-title">{phaseCopy.title}</h2>
+                <p className="subtitle">{phaseCopy.description}</p>
+              </div>
+              {coachingOpen ? (
+                <div className="countdown-card">
+                  <small>Coaching clock</small>
+                  <strong>{secondsLeft}s</strong>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="phase-track" aria-label="Match progress">
+              {[
+                { key: "lobby" as StageKey, label: "Lobby" },
+                { key: "coaching" as StageKey, label: "Coaching" },
+                { key: "resolving" as StageKey, label: "Arena" },
+                { key: "reveal" as StageKey, label: "Reveal" },
+              ].map((step) => {
+                const stepState =
+                  stageKey === "abandoned"
+                    ? "pending"
+                    : getStageOrder(step.key) < getStageOrder(stageKey)
+                      ? "done"
+                      : step.key === stageKey
+                        ? "active"
+                        : "pending";
+
+                return (
+                  <div className={`phase-step phase-step--${stepState}`} key={step.key}>
+                    <span>{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+
             {error ? <div className="error-box">{error}</div> : null}
             {message ? <div className="success-box">{message}</div> : null}
+
+            {stageKey === "lobby" ? (
+              <div className="stage-content">
+                <div className="stage-subpanel">
+                  <h3 className="section-title">What happens next</h3>
+                  <ul className="list">
+                    <li>Two players need to be in the room.</li>
+                    <li>Both players must ready up.</li>
+                    <li>Agents are assigned and the 60-second coaching phase begins.</li>
+                  </ul>
+                </div>
+                <div className="action-card">
+                  <h3 className="section-title">Ready checkpoint</h3>
+                  <p className="muted">
+                    {opponent
+                      ? "Once both sides are ready, the room rolls forward immediately."
+                      : "Share the link first if your opponent is not here yet."}
+                  </p>
+                  {canReady ? (
+                    <button
+                      className="button button--full"
+                      type="button"
+                      onClick={() => void runAction(`/api/matches/${snapshot.match.id}/ready`)}
+                      disabled={loading || viewer?.ready}
+                    >
+                      {viewer?.ready ? "Ready locked" : "I am ready"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {stageKey === "coaching" && viewer ? (
+              <div className="coach-workspace">
+                <div className="coach-agent-card">
+                  <div className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}>
+                    <AgentStickman color={viewer.agent?.bandanaColor ?? "#1e1b16"} />
+                    <div className="agent-card__header">
+                      <div>
+                        <small>Your fighter</small>
+                        <h3>{viewer.agent?.name ?? "Agent incoming"}</h3>
+                      </div>
+                      <span className="pill">{viewer.name}</span>
+                    </div>
+                    <p className="muted">
+                      {viewer.agent?.flavor ?? "Your agent will appear as soon as both sides are ready."}
+                    </p>
+                    {viewer.agent ? (
+                      <ul className="list">
+                        {viewer.agent.visibleTraits.map((trait) => (
+                          <li key={trait}>{trait}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="coach-form-shell">
+                  {viewer.submittedCoaching ? (
+                    <div className="success-box">
+                      Your coaching is locked. The room is now waiting on the other side or the timer to expire.
+                    </div>
+                  ) : (
+                    <div className="form">
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Strategy</h3>
+                          <p className="muted">Set the thesis and delivery style the agent should hold onto.</p>
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="gamePlan">Game plan</label>
+                          <textarea
+                            id="gamePlan"
+                            value={draft.gamePlan}
+                            onChange={(event) => setDraft((prev) => ({ ...prev, gamePlan: event.target.value }))}
+                            placeholder="One clean thesis, one concrete example, keep the opening short."
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="tone">Tone</label>
+                          <input
+                            id="tone"
+                            value={draft.tone}
+                            onChange={(event) => setDraft((prev) => ({ ...prev, tone: event.target.value }))}
+                            placeholder="Calm, surgical, no grandstanding."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Pressure response</h3>
+                          <p className="muted">Tell the agent how to answer attacks and what failure mode to avoid.</p>
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="whenAttacked">When attacked</label>
+                          <textarea
+                            id="whenAttacked"
+                            value={draft.whenAttacked}
+                            onChange={(event) =>
+                              setDraft((prev) => ({ ...prev, whenAttacked: event.target.value }))
+                            }
+                            placeholder="Call out missing evidence, then return to the core example."
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="avoid">Avoid this mistake</label>
+                          <textarea
+                            id="avoid"
+                            value={draft.avoidThisMistake}
+                            onChange={(event) =>
+                              setDraft((prev) => ({ ...prev, avoidThisMistake: event.target.value }))
+                            }
+                            placeholder="Do not ramble. Do not exaggerate. Stay on one lane."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Optional secret note</h3>
+                          <p className="muted">Add a little hidden edge if you have one.</p>
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor="secret">Secret note</label>
+                          <textarea
+                            id="secret"
+                            value={draft.secretNote}
+                            onChange={(event) => setDraft((prev) => ({ ...prev, secretNote: event.target.value }))}
+                            placeholder="Optional hidden spice."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="button-row">
+                        <button
+                          className="button"
+                          type="button"
+                          onClick={async () => {
+                            const result = await runAction(`/api/matches/${snapshot.match.id}/coaching`, draft);
+                            if (result) setMessage("Coaching locked in.");
+                          }}
+                          disabled={loading}
+                        >
+                          Lock coaching
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {stageKey === "resolving" ? (
+              <div className="stage-content">
+                <div className="stage-subpanel">
+                  <h3 className="section-title">Arena progress</h3>
+                  <div className="metric-row">
+                    <div className="metric-box">
+                      <small>Turns resolved</small>
+                      <strong>
+                        {turnProgress} / 6
+                      </strong>
+                    </div>
+                    <div className="metric-box">
+                      <small>Judge status</small>
+                      <strong>{snapshot.match.state === "judging" ? "Scoring now" : "Waiting on full exchange"}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="action-card">
+                  <h3 className="section-title">What to watch</h3>
+                  <p className="muted">
+                    The live feed below is the narrative view. The room event log is still available, but it is no
+                    longer the main thing to track.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {stageKey === "reveal" && snapshot.judgeResult ? (
+              <div className="reveal-stack">
+                <div className="reveal-banner">
+                  <div>
+                    <small>Winner</small>
+                    <h3>{winner?.name ?? "Unknown"}</h3>
+                    <p className="muted">{snapshot.judgeResult.reasonSummary}</p>
+                  </div>
+                  <div className="confidence-pill">
+                    <small>Judge confidence</small>
+                    <strong>{Math.round(snapshot.judgeResult.confidence * 100)}%</strong>
+                  </div>
+                </div>
+
+                <div className="score-grid">
+                  {snapshot.players.map((player) => (
+                    <div className="score-box" key={player.id}>
+                      <small>{player.name}</small>
+                      <strong>{player.agent?.name ?? "Unassigned"}</strong>
+                      <div className="divider" />
+                      <p>Expected: {player.expectedScore ?? "?"}</p>
+                      <p>Actual: {player.actualScore ?? "?"}</p>
+                      <p
+                        className={`score-value ${(player.rigScore ?? 0) >= 0 ? "score-value--positive" : "score-value--negative"}`}
+                      >
+                        {player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"}
+                      </p>
+                      <p>{player.rigLabel ?? "Unscored"}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="button-row">
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={() => void runAction(`/api/rooms/${snapshot.room.id}/rematch`)}
+                    disabled={loading}
+                  >
+                    Run it back
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {stageKey === "abandoned" ? (
+              <div className="stage-content">
+                <div className="stage-subpanel">
+                  <h3 className="section-title">Recovery</h3>
+                  <p className="muted">The round stopped because a player disconnected for too long during coaching.</p>
+                </div>
+                <div className="action-card">
+                  <h3 className="section-title">Next move</h3>
+                  <button
+                    className="button button--full"
+                    type="button"
+                    onClick={() => void runAction(`/api/rooms/${snapshot.room.id}/rematch`)}
+                    disabled={loading}
+                  >
+                    Start a fresh round
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
 
-          <section className="panel">
-            <h2>Players</h2>
-            <div className="agent-grid">
+          {showTurnFeed ? (
+            <section className="surface surface--utility utility-panel">
+              <div className="utility-header">
+                <h3 className="section-title">Live match feed</h3>
+                <p className="muted">Round-by-round output from the two agents.</p>
+              </div>
+              <div className="timeline">
+                {snapshot.turnLog.length === 0 ? (
+                  <p className="muted">No turns yet. The arena is still getting ready.</p>
+                ) : (
+                  snapshot.turnLog.map((turn) => {
+                    const player = snapshot.players.find((entry) => entry.id === turn.playerId);
+                    return (
+                      <article className="turn-card" key={turn.id}>
+                        <h4>
+                          {player?.name} · {turn.agentId} · {turn.phase}
+                        </h4>
+                        <p>{turn.content}</p>
+                        <p className="turn-score">Micro score: {turn.microScore}</p>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {matchResolved && snapshot.judgeResult ? (
+            <section className="surface surface--utility utility-panel">
+              <details className="detail-disclosure">
+                <summary>Rubric breakdown</summary>
+                <div className="detail-grid">
+                  {snapshot.players.map((player) => {
+                    const categories = snapshot.judgeResult?.scoresByCategory[player.id];
+                    return (
+                      <div className="event-card" key={player.id}>
+                        <h4>{player.name} rubric</h4>
+                        <p>Clarity: {categories?.clarity ?? "-"}</p>
+                        <p>Relevance: {categories?.relevance ?? "-"}</p>
+                        <p>Rebuttal: {categories?.rebuttal ?? "-"}</p>
+                        <p>Evidence: {categories?.evidence ?? "-"}</p>
+                        <p>Consistency: {categories?.consistency ?? "-"}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            </section>
+          ) : null}
+
+          {showEventLog ? (
+            <section className="surface surface--utility utility-panel">
+              <details className="detail-disclosure">
+                <summary>Room event log</summary>
+                <div className="timeline">
+                  {snapshot.events.map((eventItem) => (
+                    <article className="event-card" key={eventItem.id}>
+                      <h4>{formatStateLabel(eventItem.type)}</h4>
+                      <p>{eventItem.message}</p>
+                    </article>
+                  ))}
+                </div>
+              </details>
+            </section>
+          ) : null}
+        </main>
+
+        <aside className="side-stack">
+          <section className="surface surface--secondary roster-panel">
+            <div className="utility-header utility-header--stacked">
+              <h3 className="section-title">Coaches</h3>
+              <p className="muted">
+                {stageKey === "coaching"
+                  ? "Visible traits are on display. Hidden modifiers still have to be discovered through coaching."
+                  : "This roster changes emphasis as the room moves from setup to reveal."}
+              </p>
+            </div>
+            <div className="roster-list">
               {snapshot.players.map((player) => (
-                <div className={`agent-card agent-card--${player.agent?.id ?? "Bruiser"}`} key={player.id}>
-                  <AgentStickman color={player.agent?.bandanaColor ?? "#1e1b16"} />
-                  <div className="pill">{player.name}</div>
-                  <p className="muted">
-                    {player.agent ? player.agent.flavor : "Waiting for the draft drum to assign an agent."}
+                <div
+                  className={`agent-card roster-card agent-card--${player.agent?.id ?? "Bruiser"} ${
+                    player.id === snapshot.viewerPlayerId ? "agent-card--viewer" : ""
+                  }`}
+                  key={player.id}
+                >
+                  <div className="roster-card__identity">
+                    <small>{player.id === snapshot.viewerPlayerId ? "You" : "Opponent"}</small>
+                    <h3>{player.name}</h3>
+                    <p className="roster-card__state">
+                      {stageKey === "reveal"
+                        ? `${player.rigLabel ?? "Unscored"} · Rig score ${
+                            player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"
+                          }`
+                        : player.agent
+                          ? `Agent: ${player.agent.name}`
+                          : "Agent pending"}
+                    </p>
+                  </div>
+                  <p className="muted roster-card__summary">
+                    {stageKey === "reveal"
+                      ? `${player.rigLabel ?? "Unscored"} · Expected ${player.expectedScore ?? "?"} · Actual ${
+                          player.actualScore ?? "?"
+                        }`
+                      : player.agent?.flavor ?? "Agent assignment unlocks when both players are ready."}
                   </p>
-                  {player.agent ? (
+                  <div className="status-strip roster-card__chips">
+                    <span className="status-chip">{player.ready ? "Ready" : "Not ready"}</span>
+                    {coachingOpen || resolving || matchResolved ? (
+                      <span className="status-chip">
+                        {player.submittedCoaching ? "Coaching locked" : "Coaching open"}
+                      </span>
+                    ) : null}
+                    {player.disconnected ? <span className="status-chip">Disconnected</span> : null}
+                  </div>
+                  {player.agent && stageKey !== "reveal" ? (
                     <ul className="list">
                       {player.agent.visibleTraits.map((trait) => (
                         <li key={trait}>{trait}</li>
@@ -167,180 +643,6 @@ export function RoomClient({ initialSnapshot }: Props) {
             </div>
           </section>
         </aside>
-
-        <main style={{ display: "grid", gap: 24 }}>
-          <section className="arena-card">
-            <span className="eyebrow">Debate Duel</span>
-            <h2>{snapshot.match.topic.title}</h2>
-            <p>{snapshot.match.topic.prompt}</p>
-            {snapshot.match.state === "waiting_for_players" ? (
-              <p className="muted">You need two players, then both need to ready up before the coaching clock starts.</p>
-            ) : null}
-            {coachingOpen && viewer ? (
-              <div style={{ marginTop: 16 }}>
-                <div className="pill">Coaching clock: {secondsLeft}s</div>
-                <div style={{ height: 12 }} />
-                {viewer.submittedCoaching ? (
-                  <div className="success-box">Your coaching is locked. Watching the other side now.</div>
-                ) : (
-                  <div className="form">
-                    <div className="form-field">
-                      <label htmlFor="gamePlan">Game Plan</label>
-                      <textarea
-                        id="gamePlan"
-                        value={draft.gamePlan}
-                        onChange={(event) => setDraft((prev) => ({ ...prev, gamePlan: event.target.value }))}
-                        placeholder="One clean thesis, one concrete example, keep the opening short."
-                      />
-                    </div>
-                    <div className="form-field">
-                      <label htmlFor="tone">Tone</label>
-                      <input
-                        id="tone"
-                        value={draft.tone}
-                        onChange={(event) => setDraft((prev) => ({ ...prev, tone: event.target.value }))}
-                        placeholder="Calm, surgical, no grandstanding."
-                      />
-                    </div>
-                    <div className="form-field">
-                      <label htmlFor="whenAttacked">When Attacked</label>
-                      <textarea
-                        id="whenAttacked"
-                        value={draft.whenAttacked}
-                        onChange={(event) => setDraft((prev) => ({ ...prev, whenAttacked: event.target.value }))}
-                        placeholder="Call out missing evidence, then return to the core example."
-                      />
-                    </div>
-                    <div className="form-field">
-                      <label htmlFor="avoid">Avoid This Mistake</label>
-                      <textarea
-                        id="avoid"
-                        value={draft.avoidThisMistake}
-                        onChange={(event) => setDraft((prev) => ({ ...prev, avoidThisMistake: event.target.value }))}
-                        placeholder="Do not ramble. Do not exaggerate. Stay on one lane."
-                      />
-                    </div>
-                    <div className="form-field">
-                      <label htmlFor="secret">Secret Note</label>
-                      <textarea
-                        id="secret"
-                        value={draft.secretNote}
-                        onChange={(event) => setDraft((prev) => ({ ...prev, secretNote: event.target.value }))}
-                        placeholder="Optional hidden spice."
-                      />
-                    </div>
-                    <div className="button-row">
-                      <button
-                        className="button"
-                        onClick={async () => {
-                          const result = await runAction(`/api/matches/${snapshot.match.id}/coaching`, draft);
-                          if (result) setMessage("Coaching locked in.");
-                        }}
-                        disabled={loading}
-                      >
-                        Lock coaching
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
-            {["coaching_locked", "executing_match", "judging"].includes(snapshot.match.state) ? (
-              <div className="success-box" style={{ marginTop: 16 }}>
-                The arena is resolving. Polling live for turns and scorecards.
-              </div>
-            ) : null}
-            {snapshot.match.state === "abandoned" ? (
-              <div className="error-box" style={{ marginTop: 16 }}>
-                Match abandoned because a player dropped during coaching.
-              </div>
-            ) : null}
-          </section>
-
-          <section className="timeline-card">
-            <h2>Live Match Feed</h2>
-            <div className="timeline">
-              {snapshot.turnLog.length === 0 ? (
-                <p className="muted">No turns yet. The room is still setting up or resolving the first exchange.</p>
-              ) : (
-                snapshot.turnLog.map((turn) => {
-                  const player = snapshot.players.find((entry) => entry.id === turn.playerId);
-                  return (
-                    <article className="turn-card" key={turn.id}>
-                      <h4>
-                        {player?.name} · {turn.agentId} · {turn.phase}
-                      </h4>
-                      <p>{turn.content}</p>
-                      <p className="muted" style={{ marginTop: 10 }}>
-                        Micro score: {turn.microScore}
-                      </p>
-                    </article>
-                  );
-                })
-              )}
-            </div>
-          </section>
-
-          {snapshot.judgeResult ? (
-            <section className="score-card">
-              <span className="eyebrow">Reveal</span>
-              <h2>
-                Winner: {snapshot.players.find((player) => player.id === snapshot.judgeResult?.winnerPlayerId)?.name}
-              </h2>
-              <p>{snapshot.judgeResult.reasonSummary}</p>
-              <div className="score-grid">
-                {snapshot.players.map((player) => (
-                  <div className="score-box" key={player.id}>
-                    <small>{player.name}</small>
-                    <strong>{player.agent?.name}</strong>
-                    <div className="divider" />
-                    <p>Expected: {player.expectedScore ?? "?"}</p>
-                    <p>Actual: {player.actualScore ?? "?"}</p>
-                    <p
-                      className={`score-value ${(player.rigScore ?? 0) >= 0 ? "score-value--positive" : "score-value--negative"}`}
-                    >
-                      {player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"}
-                    </p>
-                    <p>{player.rigLabel ?? "Unscored"}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="divider" />
-              <div className="event-grid">
-                {snapshot.players.map((player) => {
-                  const categories = snapshot.judgeResult?.scoresByCategory[player.id];
-                  return (
-                    <div className="event-card" key={player.id}>
-                      <h4>{player.name} rubric</h4>
-                      <p>Clarity: {categories?.clarity ?? "-"}</p>
-                      <p>Relevance: {categories?.relevance ?? "-"}</p>
-                      <p>Rebuttal: {categories?.rebuttal ?? "-"}</p>
-                      <p>Evidence: {categories?.evidence ?? "-"}</p>
-                      <p>Consistency: {categories?.consistency ?? "-"}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="panel">
-            <h3>Room Event Log</h3>
-            <div className="timeline">
-              {snapshot.events.map((eventItem) => (
-                <article className="event-card" key={eventItem.id}>
-                  <h4>{eventItem.type.replaceAll("_", " ")}</h4>
-                  <p>{eventItem.message}</p>
-                </article>
-              ))}
-            </div>
-            {opponent ? (
-              <p className="muted" style={{ marginTop: 16 }}>
-                Opponent status: {opponent.name} {opponent.ready ? "is ready" : "is not ready yet"}.
-              </p>
-            ) : null}
-          </section>
-        </main>
       </div>
     </div>
   );
