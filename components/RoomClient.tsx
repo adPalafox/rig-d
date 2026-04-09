@@ -637,7 +637,7 @@ export function RoomClient({ initialSnapshot }: Props) {
         </main>
 
         <aside className="side-stack">
-          <section className="surface surface--secondary roster-panel">
+          <section className="surface surface--secondary roster-panel entry-module">
             <div className="utility-header utility-header--stacked">
               <h3 className="section-title">Coaches</h3>
               <p className="muted">
