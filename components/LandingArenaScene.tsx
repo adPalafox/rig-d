@@ -4,8 +4,8 @@ export function LandingArenaScene() {
   return (
     <div className="arena-scene">
       <div className="arena-scene__tags">
-        <span className="pill">Heavy Favorite</span>
-        <span className="pill">Your Underdog</span>
+        <span className="meta-pill">Heavy Favorite</span>
+        <span className="meta-pill">Your Underdog</span>
       </div>
       <div className="arena-scene__fighters">
         <div className="arena-fighter arena-fighter--favorite">

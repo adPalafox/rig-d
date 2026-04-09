@@ -450,29 +450,66 @@ ul {
   gap: var(--space-6);
 }
 
-.eyebrow,
-.pill,
-.status-chip {
+.kicker,
+.meta-pill,
+.status-badge,
+.trait-tag {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
+  white-space: normal;
+}
+
+.kicker {
+  width: fit-content;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.meta-pill,
+.status-badge,
+.trait-tag {
   border-radius: 999px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(30, 27, 22, 0.08);
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
+  padding: 6px 11px;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+}
+
+.meta-pill {
+  background: transparent;
+  border: 1px solid rgba(30, 27, 22, 0.12);
+  color: var(--muted);
+  text-transform: uppercase;
+  box-shadow: none;
+  opacity: 0.82;
+}
+
+.status-badge {
+  width: fit-content;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(30, 27, 22, 0.12);
+  color: var(--ink);
+  font-weight: 700;
   text-transform: uppercase;
 }
 
-.status-chip {
-  background: rgba(255, 255, 255, 0.72);
-  border-style: dashed;
+.status-badge--warning {
+  background: rgba(209, 75, 50, 0.12);
+  border-color: rgba(209, 75, 50, 0.26);
+  color: #812512;
 }
 
-.status-chip--accent {
-  background: rgba(219, 159, 23, 0.14);
-  border-color: rgba(219, 159, 23, 0.38);
+.trait-tag {
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(30, 27, 22, 0.08);
+  color: var(--muted);
 }
 
 .title {
@@ -522,16 +559,19 @@ ul {
   border-radius: var(--radius-sm);
   padding: 14px 18px;
   font-weight: 700;
-  border: 1px solid transparent;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 8px 18px rgba(30, 27, 22, 0.08);
   transition:
     transform 140ms ease,
     background-color 140ms ease,
-    border-color 140ms ease;
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .button:hover,
 .ghost-button:hover {
   transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(30, 27, 22, 0.12);
 }
 
 .button:disabled,
@@ -544,12 +584,13 @@ ul {
 .button {
   background: var(--ink);
   color: #fff8ea;
+  border-color: rgba(30, 27, 22, 0.92);
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.66);
+  background: rgba(255, 255, 255, 0.92);
   color: var(--ink);
-  border-color: var(--line);
+  border-color: rgba(30, 27, 22, 0.16);
 }
 
 .button--full {
@@ -719,12 +760,6 @@ ul {
   gap: var(--space-2);
 }
 
-.status-chip {
-  width: fit-content;
-  max-width: 100%;
-  white-space: normal;
-}
-
 .phase-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -798,6 +833,9 @@ ul {
 .form-field {
   display: grid;
   gap: var(--space-2);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(30, 27, 22, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .form-field label {
@@ -925,13 +963,6 @@ ul {
 .stage-title,
 .room-title {
   overflow-wrap: anywhere;
-}
-
-.agent-card .pill,
-.status-chip,
-.eyebrow {
-  max-width: 100%;
-  white-space: normal;
 }
 
 .roster-list > * {

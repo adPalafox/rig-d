@@ -192,13 +192,13 @@ export function RoomClient({ initialSnapshot }: Props) {
         <section className="surface surface--secondary room-summary">
           <div className="room-summary__header">
             <div>
-              <span className="eyebrow">Private Room</span>
+              <span className="kicker">Private Room</span>
               <h1 className="room-title">Room {snapshot.room.code}</h1>
               <p className="summary-copy">{snapshot.match.topic.prompt}</p>
             </div>
             <div className="status-strip">
-              <span className="status-chip">Phase: {phaseCopy.label}</span>
-              <span className="status-chip">
+              <span className="status-badge">Phase: {phaseCopy.label}</span>
+              <span className="status-badge">
                 Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
               </span>
             </div>
@@ -238,7 +238,7 @@ export function RoomClient({ initialSnapshot }: Props) {
           <section className="surface surface--primary stage-panel">
             <div className="stage-panel__header">
               <div>
-                <span className="eyebrow">{phaseCopy.label}</span>
+                <span className="kicker">{phaseCopy.label}</span>
                 <h2 className="stage-title">{phaseCopy.title}</h2>
                 <p className="subtitle">{phaseCopy.description}</p>
               </div>
@@ -326,7 +326,7 @@ export function RoomClient({ initialSnapshot }: Props) {
                         <small>Your fighter</small>
                         <h3>{viewer.agent?.name ?? "Agent incoming"}</h3>
                       </div>
-                      <span className="pill">{viewer.name}</span>
+                      <span className="meta-pill">{viewer.name}</span>
                     </div>
                     <p className="muted">
                       {viewer.agent?.flavor ?? "Your agent will appear as soon as both sides are ready."}
@@ -654,9 +654,9 @@ export function RoomClient({ initialSnapshot }: Props) {
                   }`}
                   key={player.id}
                 >
-                  <div className="roster-card__identity">
-                    <small>{player.id === snapshot.viewerPlayerId ? "You" : "Opponent"}</small>
-                    <h3>{player.name}</h3>
+                    <div className="roster-card__identity">
+                      <small>{player.id === snapshot.viewerPlayerId ? "You" : "Opponent"}</small>
+                      <h3>{player.name}</h3>
                     <p className="roster-card__state">
                       {stageKey === "reveal"
                         ? `${player.rigLabel ?? "Unscored"} · Rig score ${
@@ -675,13 +675,13 @@ export function RoomClient({ initialSnapshot }: Props) {
                       : player.agent?.flavor ?? "Agent assignment unlocks when both players are ready."}
                   </p>
                   <div className="status-strip roster-card__chips">
-                    <span className="status-chip">{player.ready ? "Ready" : "Not ready"}</span>
+                    <span className="status-badge">{player.ready ? "Ready" : "Not ready"}</span>
                     {coachingOpen || resolving || matchResolved ? (
-                      <span className="status-chip">
+                      <span className="status-badge">
                         {player.submittedCoaching ? "Coaching locked" : "Coaching open"}
                       </span>
                     ) : null}
-                    {player.disconnected ? <span className="status-chip">Disconnected</span> : null}
+                    {player.disconnected ? <span className="status-badge status-badge--warning">Disconnected</span> : null}
                   </div>
                   {player.agent && stageKey !== "reveal" ? (
                     <ul className="list">

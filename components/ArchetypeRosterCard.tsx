@@ -32,7 +32,7 @@ export function ArchetypeRosterCard({ agent }: Props) {
         <p>{agent.flavor}</p>
         <div className="trait-row">
           {agent.visibleTraits.map((trait) => (
-            <span className="status-chip" key={trait}>
+            <span className="trait-tag" key={trait}>
               {trait}
             </span>
           ))}

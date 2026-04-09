@@ -11,7 +11,7 @@ export default function HomePage() {
       <section className="landing-hero">
         <div className="surface surface--primary hero-card hero-card--landing">
           <div className="hero-copy hero-copy--landing">
-            <span className="eyebrow">Rig D Agent</span>
+            <span className="kicker">Rig D Agent</span>
             <h1 className="title">Coach the wrong fighter into the right win.</h1>
             <p className="subtitle">
               A private 1v1 stick-fighter debate arena where the best feeling is turning the unstable side into the
@@ -31,7 +31,7 @@ export default function HomePage() {
 
         <aside className="surface surface--secondary entry-module entry-module--compact">
           <div className="entry-module__header">
-            <span className="pill">Enter The Arena</span>
+            <span className="meta-pill">Enter The Arena</span>
             <h2 className="section-title">Start fast</h2>
             <p className="muted">Host a room or jump into an invite. The mechanics can wait until after the click.</p>
           </div>
@@ -39,16 +39,14 @@ export default function HomePage() {
           <div className="entry-stack">
             <section className="cta-card cta-card--entry">
               <div className="cta-copy">
-                <span className="pill">Host</span>
-                <h3 className="section-title">Create a private room</h3>
+                <h3 className="section-title">Create a private room (Host)</h3>
               </div>
               <CreateRoomForm />
             </section>
 
             <section className="cta-card cta-card--entry cta-card--secondary">
               <div className="cta-copy">
-                <span className="pill">Join</span>
-                <h3 className="section-title">Use an invite code</h3>
+                <h3 className="section-title">Use an invite code (Join)</h3>
               </div>
               <HomeJoinForm />
             </section>

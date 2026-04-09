@@ -4,7 +4,7 @@ export default function HowItWorksPage() {
   return (
     <main className="page-shell">
       <section className="surface surface--primary panel panel--details">
-        <span className="eyebrow">Game Details</span>
+        <span className="kicker">Game Details</span>
         <h1 className="title title--details">How Rig D Agent works</h1>
         <p className="subtitle">
           The homepage now stays focused on the pitch and first action. This page carries the mechanics, flow, and MVP
