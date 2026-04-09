@@ -626,8 +626,7 @@ ul {
 .stage-subpanel,
 .action-card,
 .metric-box,
-.countdown-card,
-.confidence-pill {
+.countdown-card {
   border-radius: var(--radius-md);
   border: 1px solid rgba(30, 27, 22, 0.1);
   background: rgba(255, 255, 255, 0.72);
@@ -642,8 +641,7 @@ ul {
 .stage-subpanel,
 .action-card,
 .metric-box,
-.countdown-card,
-.confidence-pill {
+.countdown-card {
   padding: var(--space-4);
 }
 
@@ -995,12 +993,16 @@ ul {
 }
 
 .agent-stickman--reveal {
-  width: 150px;
-  height: 150px;
+  width: 158px;
+  height: 158px;
 }
 
 .agent-stickman--loser {
-  opacity: 0.68;
+  opacity: 0.56;
+  position: absolute;
+  right: -24px;
+  bottom: -4px;
+  transform: scale(0.82);
 }
 
 .agent-stage {
@@ -1041,10 +1043,53 @@ ul {
 }
 
 .reveal-banner__scene {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, auto));
-  gap: var(--space-3);
+  grid-template-columns: 1fr;
   align-items: end;
+  justify-items: center;
+  min-height: 320px;
+  padding: 12px 8px 0;
+  overflow: hidden;
+}
+
+.reveal-banner__sceneWrap {
+  min-width: 0;
+  width: min(100%, 280px);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.08);
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.84), transparent 52%),
+    rgba(255, 255, 255, 0.44);
+  padding: 10px;
+  overflow: hidden;
+}
+
+.reveal-banner__summary {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.reveal-banner__summary h3 {
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  line-height: 0.96;
+  overflow-wrap: anywhere;
+}
+
+.reveal-banner__summary p {
+  max-width: 40ch;
+}
+
+.reveal-banner {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.reveal-banner > * {
+  min-width: 0;
 }
 
 .metric-row,
@@ -1226,7 +1271,7 @@ ul {
   .detail-grid,
   .phase-track,
   .arena-scene__fighters,
-  .reveal-banner__scene,
+  .reveal-banner,
   .proof-grid,
   .details-flow {
     grid-template-columns: 1fr;
@@ -1271,5 +1316,14 @@ ul {
   .agent-stickman--scene {
     width: 180px;
     height: 180px;
+  }
+
+  .reveal-banner__sceneWrap {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .reveal-banner__summary p {
+    max-width: none;
   }
 }

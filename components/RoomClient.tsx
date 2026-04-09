@@ -27,7 +27,11 @@ const initialDraft: CoachingDraft = {
   secretNote: "",
 };
 
-const resolvingStates: MatchState[] = ["coaching_locked", "executing_match", "judging"];
+const resolvingStates: MatchState[] = [
+  "coaching_locked",
+  "executing_match",
+  "judging",
+];
 const revealStates: MatchState[] = ["reveal_ready", "completed"];
 
 function formatStateLabel(state: string) {
@@ -96,11 +100,17 @@ export function RoomClient({ initialSnapshot }: Props) {
   }, [snapshot.match.coachingDeadlineAt]);
 
   const viewer = useMemo(
-    () => snapshot.players.find((player) => player.id === snapshot.viewerPlayerId) ?? null,
+    () =>
+      snapshot.players.find(
+        (player) => player.id === snapshot.viewerPlayerId,
+      ) ?? null,
     [snapshot],
   );
   const opponent = useMemo(
-    () => snapshot.players.find((player) => player.id !== snapshot.viewerPlayerId) ?? null,
+    () =>
+      snapshot.players.find(
+        (player) => player.id !== snapshot.viewerPlayerId,
+      ) ?? null,
     [snapshot],
   );
 
@@ -112,7 +122,10 @@ export function RoomClient({ initialSnapshot }: Props) {
   const showTurnFeed = resolving || matchResolved;
   const showEventLog = resolving || matchResolved || stageKey === "abandoned";
   const turnProgress = Math.min(snapshot.turnLog.length, 6);
-  const winner = snapshot.players.find((player) => player.id === snapshot.judgeResult?.winnerPlayerId) ?? null;
+  const winner =
+    snapshot.players.find(
+      (player) => player.id === snapshot.judgeResult?.winnerPlayerId,
+    ) ?? null;
   const viewerAgent = viewer?.agent ?? null;
   const opponentAgent = opponent?.agent ?? null;
   const viewerColor = viewerAgent?.bandanaColor ?? "#1e1b16";
@@ -121,14 +134,18 @@ export function RoomClient({ initialSnapshot }: Props) {
   const phaseCopy = {
     lobby: {
       label: "Lobby",
-      title: opponent ? "Get both coaches locked in" : "Waiting for the second player",
+      title: opponent
+        ? "Get both coaches locked in"
+        : "Waiting for the second player",
       description: opponent
         ? "Both players need to ready up before the arena assigns agents and opens coaching."
         : "Share the room link, get your opponent in, then lock in when both sides are present.",
     },
     coaching: {
       label: "Coaching",
-      title: viewer?.submittedCoaching ? "Your coaching is locked" : "Coach your fighter for the upset",
+      title: viewer?.submittedCoaching
+        ? "Your coaching is locked"
+        : "Coach your fighter for the upset",
       description: viewer?.submittedCoaching
         ? "Your side is set. The room will move once the other coach locks in or the timer expires."
         : "Give one clean plan, one pressure response, and one mistake to avoid. The best coaching is sharp, not crowded.",
@@ -142,12 +159,15 @@ export function RoomClient({ initialSnapshot }: Props) {
     reveal: {
       label: "Reveal",
       title: winner ? `${winner.name} won the room` : "The result is in",
-      description: snapshot.judgeResult?.reasonSummary ?? "The final score is ready for both sides.",
+      description:
+        snapshot.judgeResult?.reasonSummary ??
+        "The final score is ready for both sides.",
     },
     abandoned: {
       label: "Match Interrupted",
       title: "The room was abandoned during coaching",
-      description: "One player dropped for too long, so this round did not resolve.",
+      description:
+        "One player dropped for too long, so this round did not resolve.",
     },
   }[stageKey];
 
@@ -162,7 +182,9 @@ export function RoomClient({ initialSnapshot }: Props) {
         headers: { "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const json = (await response.json()) as MatchSnapshot & { error?: string };
+      const json = (await response.json()) as MatchSnapshot & {
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(json.error ?? "Action failed.");
       }
@@ -199,7 +221,8 @@ export function RoomClient({ initialSnapshot }: Props) {
             <div className="status-strip">
               <span className="status-badge">Phase: {phaseCopy.label}</span>
               <span className="status-badge">
-                Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
+                Matchup: {viewer?.name ?? "You"} vs{" "}
+                {opponent?.name ?? "Waiting for opponent"}
               </span>
             </div>
           </div>
@@ -207,9 +230,15 @@ export function RoomClient({ initialSnapshot }: Props) {
           <div className="summary-grid">
             <div className="summary-box summary-box--wide">
               <small>Share link</small>
-              <strong className="inline-code room-link">{snapshot.room.shareUrl}</strong>
+              <strong className="inline-code room-link">
+                {snapshot.room.shareUrl}
+              </strong>
               <div className="summary-actions">
-                <button className="ghost-button button--small" type="button" onClick={() => void copyShareLink()}>
+                <button
+                  className="ghost-button button--small"
+                  type="button"
+                  onClick={() => void copyShareLink()}
+                >
                   Copy link
                 </button>
               </div>
@@ -227,7 +256,13 @@ export function RoomClient({ initialSnapshot }: Props) {
             <div className="summary-box">
               <small>Opponent</small>
               <strong>{opponent?.name ?? "Open slot"}</strong>
-              <p>{opponent ? (opponent.ready ? "Ready locked." : "Not ready yet.") : "Waiting to join."}</p>
+              <p>
+                {opponent
+                  ? opponent.ready
+                    ? "Ready locked."
+                    : "Not ready yet."
+                  : "Waiting to join."}
+              </p>
             </div>
           </div>
         </section>
@@ -267,7 +302,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                         : "pending";
 
                 return (
-                  <div className={`phase-step phase-step--${stepState}`} key={step.key}>
+                  <div
+                    className={`phase-step phase-step--${stepState}`}
+                    key={step.key}
+                  >
                     <span>{step.label}</span>
                   </div>
                 );
@@ -284,7 +322,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                   <ul className="list">
                     <li>Two players need to be in the room.</li>
                     <li>Both players must ready up.</li>
-                    <li>Agents are assigned and the 60-second coaching phase begins.</li>
+                    <li>
+                      Agents are assigned and the 60-second coaching phase
+                      begins.
+                    </li>
                   </ul>
                 </div>
                 <div className="action-card">
@@ -298,7 +339,11 @@ export function RoomClient({ initialSnapshot }: Props) {
                     <button
                       className="button button--full"
                       type="button"
-                      onClick={() => void runAction(`/api/matches/${snapshot.match.id}/ready`)}
+                      onClick={() =>
+                        void runAction(
+                          `/api/matches/${snapshot.match.id}/ready`,
+                        )
+                      }
                       disabled={loading || viewer?.ready}
                     >
                       {viewer?.ready ? "Ready locked" : "I am ready"}
@@ -311,7 +356,9 @@ export function RoomClient({ initialSnapshot }: Props) {
             {stageKey === "coaching" && viewer ? (
               <div className="coach-workspace">
                 <div className="coach-agent-card">
-                  <div className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}>
+                  <div
+                    className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}
+                  >
                     <div className="agent-stage">
                       <AgentStickman
                         className="agent-stickman agent-stickman--hero"
@@ -329,7 +376,8 @@ export function RoomClient({ initialSnapshot }: Props) {
                       <span className="meta-pill">{viewer.name}</span>
                     </div>
                     <p className="muted">
-                      {viewer.agent?.flavor ?? "Your agent will appear as soon as both sides are ready."}
+                      {viewer.agent?.flavor ??
+                        "Your agent will appear as soon as both sides are ready."}
                     </p>
                     {viewer.agent ? (
                       <ul className="list">
@@ -344,21 +392,30 @@ export function RoomClient({ initialSnapshot }: Props) {
                 <div className="coach-form-shell">
                   {viewer.submittedCoaching ? (
                     <div className="success-box">
-                      Your coaching is locked. The room is now waiting on the other side or the timer to expire.
+                      Your coaching is locked. The room is now waiting on the
+                      other side or the timer to expire.
                     </div>
                   ) : (
                     <div className="form">
                       <div className="form-cluster">
                         <div>
                           <h3 className="section-title">Strategy</h3>
-                          <p className="muted">Set the thesis and delivery style the agent should hold onto.</p>
+                          <p className="muted">
+                            Set the thesis and delivery style the agent should
+                            hold onto.
+                          </p>
                         </div>
                         <div className="form-field">
                           <label htmlFor="gamePlan">Game plan</label>
                           <textarea
                             id="gamePlan"
                             value={draft.gamePlan}
-                            onChange={(event) => setDraft((prev) => ({ ...prev, gamePlan: event.target.value }))}
+                            onChange={(event) =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                gamePlan: event.target.value,
+                              }))
+                            }
                             placeholder="One clean thesis, one concrete example, keep the opening short."
                           />
                         </div>
@@ -367,7 +424,12 @@ export function RoomClient({ initialSnapshot }: Props) {
                           <input
                             id="tone"
                             value={draft.tone}
-                            onChange={(event) => setDraft((prev) => ({ ...prev, tone: event.target.value }))}
+                            onChange={(event) =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                tone: event.target.value,
+                              }))
+                            }
                             placeholder="Calm, surgical, no grandstanding."
                           />
                         </div>
@@ -376,7 +438,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                       <div className="form-cluster">
                         <div>
                           <h3 className="section-title">Pressure response</h3>
-                          <p className="muted">Tell the agent how to answer attacks and what failure mode to avoid.</p>
+                          <p className="muted">
+                            Tell the agent how to answer attacks and what
+                            failure mode to avoid.
+                          </p>
                         </div>
                         <div className="form-field">
                           <label htmlFor="whenAttacked">When attacked</label>
@@ -384,7 +449,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                             id="whenAttacked"
                             value={draft.whenAttacked}
                             onChange={(event) =>
-                              setDraft((prev) => ({ ...prev, whenAttacked: event.target.value }))
+                              setDraft((prev) => ({
+                                ...prev,
+                                whenAttacked: event.target.value,
+                              }))
                             }
                             placeholder="Call out missing evidence, then return to the core example."
                           />
@@ -395,7 +463,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                             id="avoid"
                             value={draft.avoidThisMistake}
                             onChange={(event) =>
-                              setDraft((prev) => ({ ...prev, avoidThisMistake: event.target.value }))
+                              setDraft((prev) => ({
+                                ...prev,
+                                avoidThisMistake: event.target.value,
+                              }))
                             }
                             placeholder="Do not ramble. Do not exaggerate. Stay on one lane."
                           />
@@ -404,15 +475,24 @@ export function RoomClient({ initialSnapshot }: Props) {
 
                       <div className="form-cluster">
                         <div>
-                          <h3 className="section-title">Optional secret note</h3>
-                          <p className="muted">Add a little hidden edge if you have one.</p>
+                          <h3 className="section-title">
+                            Optional secret note
+                          </h3>
+                          <p className="muted">
+                            Add a little hidden edge if you have one.
+                          </p>
                         </div>
                         <div className="form-field">
                           <label htmlFor="secret">Secret note</label>
                           <textarea
                             id="secret"
                             value={draft.secretNote}
-                            onChange={(event) => setDraft((prev) => ({ ...prev, secretNote: event.target.value }))}
+                            onChange={(event) =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                secretNote: event.target.value,
+                              }))
+                            }
                             placeholder="Optional hidden spice."
                           />
                         </div>
@@ -423,7 +503,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                           className="button"
                           type="button"
                           onClick={async () => {
-                            const result = await runAction(`/api/matches/${snapshot.match.id}/coaching`, draft);
+                            const result = await runAction(
+                              `/api/matches/${snapshot.match.id}/coaching`,
+                              draft,
+                            );
                             if (result) setMessage("Coaching locked in.");
                           }}
                           disabled={loading}
@@ -462,21 +545,24 @@ export function RoomClient({ initialSnapshot }: Props) {
                   <div className="metric-row">
                     <div className="metric-box">
                       <small>Turns resolved</small>
-                      <strong>
-                        {turnProgress} / 6
-                      </strong>
+                      <strong>{turnProgress} / 6</strong>
                     </div>
                     <div className="metric-box">
                       <small>Judge status</small>
-                      <strong>{snapshot.match.state === "judging" ? "Scoring now" : "Waiting on full exchange"}</strong>
+                      <strong>
+                        {snapshot.match.state === "judging"
+                          ? "Scoring now"
+                          : "Waiting on full exchange"}
+                      </strong>
                     </div>
                   </div>
                 </div>
                 <div className="action-card">
                   <h3 className="section-title">What to watch</h3>
                   <p className="muted">
-                    The live feed below is the narrative view. The room event log is still available, but it is no
-                    longer the main thing to track.
+                    The live feed below is the narrative view. The room event
+                    log is still available, but it is no longer the main thing
+                    to track.
                   </p>
                 </div>
               </div>
@@ -485,35 +571,53 @@ export function RoomClient({ initialSnapshot }: Props) {
             {stageKey === "reveal" && snapshot.judgeResult ? (
               <div className="reveal-stack">
                 <div className="reveal-banner">
-                  <div className="reveal-banner__scene">
-                    <AgentStickman
-                      className="agent-stickman agent-stickman--reveal"
-                      color={
-                        snapshot.players.find((player) => player.id === winner?.id)?.agent?.bandanaColor ?? viewerColor
-                      }
-                      variant={winner?.agent?.id ?? viewerAgent?.id ?? "Bruiser"}
-                      pose="victory"
-                      emphasis="burst"
-                    />
-                    <AgentStickman
-                      className="agent-stickman agent-stickman--reveal agent-stickman--loser"
-                      color={
-                        snapshot.players.find((player) => player.id !== winner?.id)?.agent?.bandanaColor ?? opponentColor
-                      }
-                      variant={snapshot.players.find((player) => player.id !== winner?.id)?.agent?.id ?? opponentAgent?.id ?? "Gremlin"}
-                      pose="slump"
-                      emphasis="ring"
-                      flipped
-                    />
+                  <div className="reveal-banner__sceneWrap">
+                    <div className="reveal-banner__scene">
+                      <AgentStickman
+                        className="agent-stickman agent-stickman--reveal"
+                        color={
+                          snapshot.players.find(
+                            (player) => player.id === winner?.id,
+                          )?.agent?.bandanaColor ?? viewerColor
+                        }
+                        variant={
+                          winner?.agent?.id ?? viewerAgent?.id ?? "Bruiser"
+                        }
+                        pose="victory"
+                        emphasis="burst"
+                      />
+                      <AgentStickman
+                        className="agent-stickman agent-stickman--reveal agent-stickman--loser"
+                        color={
+                          snapshot.players.find(
+                            (player) => player.id !== winner?.id,
+                          )?.agent?.bandanaColor ?? opponentColor
+                        }
+                        variant={
+                          snapshot.players.find(
+                            (player) => player.id !== winner?.id,
+                          )?.agent?.id ??
+                          opponentAgent?.id ??
+                          "Gremlin"
+                        }
+                        pose="slump"
+                        emphasis="ring"
+                        flipped
+                      />
+                    </div>
                   </div>
-                  <div>
+                  <div className="reveal-banner__summary">
+                    <div className="confidence-pill">
+                      <small>Judge confidence</small>
+                      <strong>
+                        {Math.round(snapshot.judgeResult.confidence * 100)}%
+                      </strong>
+                    </div>
                     <small>Winner</small>
                     <h3>{winner?.name ?? "Unknown"}</h3>
-                    <p className="muted">{snapshot.judgeResult.reasonSummary}</p>
-                  </div>
-                  <div className="confidence-pill">
-                    <small>Judge confidence</small>
-                    <strong>{Math.round(snapshot.judgeResult.confidence * 100)}%</strong>
+                    <p className="muted">
+                      {snapshot.judgeResult.reasonSummary}
+                    </p>
                   </div>
                 </div>
 
@@ -528,7 +632,9 @@ export function RoomClient({ initialSnapshot }: Props) {
                       <p
                         className={`score-value ${(player.rigScore ?? 0) >= 0 ? "score-value--positive" : "score-value--negative"}`}
                       >
-                        {player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"}
+                        {player.rigScore !== null
+                          ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}`
+                          : "?"}
                       </p>
                       <p>{player.rigLabel ?? "Unscored"}</p>
                     </div>
@@ -539,7 +645,9 @@ export function RoomClient({ initialSnapshot }: Props) {
                   <button
                     className="button"
                     type="button"
-                    onClick={() => void runAction(`/api/rooms/${snapshot.room.id}/rematch`)}
+                    onClick={() =>
+                      void runAction(`/api/rooms/${snapshot.room.id}/rematch`)
+                    }
                     disabled={loading}
                   >
                     Run it back
@@ -552,14 +660,19 @@ export function RoomClient({ initialSnapshot }: Props) {
               <div className="stage-content">
                 <div className="stage-subpanel">
                   <h3 className="section-title">Recovery</h3>
-                  <p className="muted">The round stopped because a player disconnected for too long during coaching.</p>
+                  <p className="muted">
+                    The round stopped because a player disconnected for too long
+                    during coaching.
+                  </p>
                 </div>
                 <div className="action-card">
                   <h3 className="section-title">Next move</h3>
                   <button
                     className="button button--full"
                     type="button"
-                    onClick={() => void runAction(`/api/rooms/${snapshot.room.id}/rematch`)}
+                    onClick={() =>
+                      void runAction(`/api/rooms/${snapshot.room.id}/rematch`)
+                    }
                     disabled={loading}
                   >
                     Start a fresh round
@@ -573,21 +686,29 @@ export function RoomClient({ initialSnapshot }: Props) {
             <section className="surface surface--utility utility-panel">
               <div className="utility-header">
                 <h3 className="section-title">Live match feed</h3>
-                <p className="muted">Round-by-round output from the two agents.</p>
+                <p className="muted">
+                  Round-by-round output from the two agents.
+                </p>
               </div>
               <div className="timeline">
                 {snapshot.turnLog.length === 0 ? (
-                  <p className="muted">No turns yet. The arena is still getting ready.</p>
+                  <p className="muted">
+                    No turns yet. The arena is still getting ready.
+                  </p>
                 ) : (
                   snapshot.turnLog.map((turn) => {
-                    const player = snapshot.players.find((entry) => entry.id === turn.playerId);
+                    const player = snapshot.players.find(
+                      (entry) => entry.id === turn.playerId,
+                    );
                     return (
                       <article className="turn-card" key={turn.id}>
                         <h4>
                           {player?.name} · {turn.agentId} · {turn.phase}
                         </h4>
                         <p>{turn.content}</p>
-                        <p className="turn-score">Micro score: {turn.microScore}</p>
+                        <p className="turn-score">
+                          Micro score: {turn.microScore}
+                        </p>
                       </article>
                     );
                   })
@@ -602,7 +723,8 @@ export function RoomClient({ initialSnapshot }: Props) {
                 <summary>Rubric breakdown</summary>
                 <div className="detail-grid">
                   {snapshot.players.map((player) => {
-                    const categories = snapshot.judgeResult?.scoresByCategory[player.id];
+                    const categories =
+                      snapshot.judgeResult?.scoresByCategory[player.id];
                     return (
                       <div className="event-card" key={player.id}>
                         <h4>{player.name} rubric</h4>
@@ -650,17 +772,25 @@ export function RoomClient({ initialSnapshot }: Props) {
               {snapshot.players.map((player) => (
                 <div
                   className={`agent-card roster-card agent-card--${player.agent?.id ?? "Bruiser"} ${
-                    player.id === snapshot.viewerPlayerId ? "agent-card--viewer" : ""
+                    player.id === snapshot.viewerPlayerId
+                      ? "agent-card--viewer"
+                      : ""
                   }`}
                   key={player.id}
                 >
-                    <div className="roster-card__identity">
-                      <small>{player.id === snapshot.viewerPlayerId ? "You" : "Opponent"}</small>
-                      <h3>{player.name}</h3>
+                  <div className="roster-card__identity">
+                    <small>
+                      {player.id === snapshot.viewerPlayerId
+                        ? "You"
+                        : "Opponent"}
+                    </small>
+                    <h3>{player.name}</h3>
                     <p className="roster-card__state">
                       {stageKey === "reveal"
                         ? `${player.rigLabel ?? "Unscored"} · Rig score ${
-                            player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"
+                            player.rigScore !== null
+                              ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}`
+                              : "?"
                           }`
                         : player.agent
                           ? `Agent: ${player.agent.name}`
@@ -672,16 +802,25 @@ export function RoomClient({ initialSnapshot }: Props) {
                       ? `${player.rigLabel ?? "Unscored"} · Expected ${player.expectedScore ?? "?"} · Actual ${
                           player.actualScore ?? "?"
                         }`
-                      : player.agent?.flavor ?? "Agent assignment unlocks when both players are ready."}
+                      : (player.agent?.flavor ??
+                        "Agent assignment unlocks when both players are ready.")}
                   </p>
                   <div className="status-strip roster-card__chips">
-                    <span className="status-badge">{player.ready ? "Ready" : "Not ready"}</span>
+                    <span className="status-badge">
+                      {player.ready ? "Ready" : "Not ready"}
+                    </span>
                     {coachingOpen || resolving || matchResolved ? (
                       <span className="status-badge">
-                        {player.submittedCoaching ? "Coaching locked" : "Coaching open"}
+                        {player.submittedCoaching
+                          ? "Coaching locked"
+                          : "Coaching open"}
                       </span>
                     ) : null}
-                    {player.disconnected ? <span className="status-badge status-badge--warning">Disconnected</span> : null}
+                    {player.disconnected ? (
+                      <span className="status-badge status-badge--warning">
+                        Disconnected
+                      </span>
+                    ) : null}
                   </div>
                   {player.agent && stageKey !== "reveal" ? (
                     <ul className="list">
