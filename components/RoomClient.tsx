@@ -498,7 +498,7 @@ export function RoomClient({ initialSnapshot }: Props) {
                     <strong>{snapshot.match.state === "judging" ? "Fight closed" : `${formatPhaseLabel(snapshot.match.currentPhase)} in play`}</strong>
                     <span>{opponent?.name ?? "Opponent"}</span>
                   </div>
-                  <div className="momentum-bar" aria-label="Momentum bar">
+                  <div className="momentum-bar">
                     <div className="momentum-bar__lane momentum-bar__lane--left" style={{ width: `${momentumSplit.left}%` }} />
                     <div className="momentum-bar__lane momentum-bar__lane--right" style={{ width: `${momentumSplit.right}%` }} />
                   </div>
