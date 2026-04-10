@@ -13,6 +13,27 @@ export type OpeningStyle = "fast_start" | "measured" | "needle" | "showboat";
 export type PressureRule = "counter_first" | "reset_frame" | "trade_shots" | "stay_grounded";
 export type RiskLevel = "composed" | "pressing" | "all_in";
 
+export type FighterState =
+  | "advancing"
+  | "rocked"
+  | "guarded"
+  | "overextended"
+  | "recovering"
+  | "crowd_favorite";
+
+export type FighterAction =
+  | "idle"
+  | "jab"
+  | "lunge"
+  | "recoil"
+  | "block"
+  | "stumble"
+  | "taunt"
+  | "exhausted"
+  | "ringout_pressure";
+
+export type ImpactType = "hit" | "whiff" | "block" | "hype" | "recovery" | "crash";
+
 export type AgentDefinition = {
   id: AgentId;
   name: string;
@@ -50,14 +71,14 @@ export type SetupOption<T extends string> = {
 };
 
 export type LiveCommandId =
-  | "push"
-  | "reset"
-  | "counter"
-  | "stay_tight"
-  | "crowd_pleaser"
-  | "ground_it"
-  | "one_example"
-  | "big_finish";
+  | "rush_in"
+  | "back_off"
+  | "slip_counter"
+  | "cover_up"
+  | "showboat"
+  | "plant_your_feet"
+  | "stick_the_jab"
+  | "go_for_the_bell";
 
 export type LiveCommandDefinition = {
   id: LiveCommandId;
@@ -74,6 +95,7 @@ export type MatchEventType =
   | "setup_locked"
   | "live_phase_started"
   | "command_used"
+  | "arena_beat_resolved"
   | "live_phase_locked"
   | "turn_resolved"
   | "momentum_updated"
@@ -100,6 +122,26 @@ export type MatchCommand = {
   label: string;
   cost: number;
   energyAfter: number;
+  createdAt: number;
+};
+
+export type ArenaBeat = {
+  id: string;
+  phase: DebatePhase;
+  beatNumber: number;
+  playerId: string;
+  playerName: string;
+  agentId: AgentId;
+  commandId: LiveCommandId;
+  commandLabel: string;
+  fighterState: FighterState;
+  fighterAction: FighterAction;
+  ringPosition: number;
+  staggerLevel: number;
+  hypeLevel: number;
+  impactType: ImpactType;
+  swingTag: string;
+  commentary: string;
   createdAt: number;
 };
 
@@ -175,6 +217,7 @@ export type MatchSnapshot = {
     currentPhase: DebatePhase | null;
     startedAt: number;
     revealAt: number | null;
+    currentBeat: number;
   };
   viewerPlayerId: string | null;
   players: Array<{
@@ -201,10 +244,17 @@ export type MatchSnapshot = {
     lastCommandAt: number | null;
     activeCommandFeed: MatchCommand[];
     momentum: number;
+    fighterState: FighterState;
+    fighterAction: FighterAction;
+    ringPosition: number;
+    staggerLevel: number;
+    hypeLevel: number;
+    lastImpactType: ImpactType;
   }>;
   turnLog: MatchTurn[];
   commandFeed: MatchCommand[];
   momentumTimeline: MomentumPoint[];
+  arenaTimeline: ArenaBeat[];
   judgeResult: JudgeResult | null;
   events: MatchEvent[];
 };

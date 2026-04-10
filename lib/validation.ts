@@ -56,7 +56,7 @@ export function parseSetupPlan(value: unknown): SetupPlan {
 
 export function parseLiveCommand(value: unknown) {
   const commandId = String((value as { commandId?: string } | null)?.commandId ?? "").trim();
-  if (!liveCommandSet.has(commandId as LiveCommandId)) {
+  if (!liveCommandSet.has(commandId)) {
     throw new Error("Invalid live command.");
   }
   return commandId as LiveCommandId;

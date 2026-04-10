@@ -31,12 +31,12 @@ export default function HowItWorksPage() {
             <div className="proof-card">
               <small>2. Corner setup</small>
               <strong>Roughly 18 seconds to set the lane</strong>
-              <p>Players pick an opening style, pressure rule, and risk level before the bell.</p>
+              <p>Players set how the fighter enters, handles pressure, and how reckless the room is allowed to get.</p>
             </div>
             <div className="proof-card">
               <small>3. Fight goes live</small>
-              <strong>Opening, rebuttal, closing with live corner calls</strong>
-              <p>Both coaches spend corner energy on quick commands while momentum swings in public.</p>
+              <strong>The ring moves every time the corner speaks</strong>
+              <p>Both coaches spend corner energy on fight calls that immediately change stance, space, and crowd heat.</p>
             </div>
           </div>
         </article>
@@ -48,6 +48,7 @@ export default function HowItWorksPage() {
             <li>Only one mode: Debate Duel.</li>
             <li>Anonymous cookie-based sessions, no account wall.</li>
             <li>Live corner commands are public and bounded by an energy meter.</li>
+            <li>The arena board is the primary source of truth; transcripts are secondary.</li>
             <li>Mock AI runs by default; server-side OpenAI activates with env config.</li>
           </ul>
         </article>
@@ -61,18 +62,18 @@ export default function HowItWorksPage() {
           <div className="proof-grid">
             <div className="proof-card">
               <small>Winner</small>
-              <strong>The debate result still matters</strong>
-              <p>The judge picks who argued more convincingly across the full exchange.</p>
+              <strong>The room cares about who controlled the chaos</strong>
+              <p>The winner is the side that owned space, survived the mess, and made the better big moments land.</p>
             </div>
             <div className="proof-card">
               <small>Rig Score</small>
               <strong>Expectation is tracked separately</strong>
-              <p>The best moment is when the weaker-looking side dramatically beats its baseline.</p>
+              <p>The best feeling is still dragging a shaky fighter way above expectation.</p>
             </div>
             <div className="proof-card">
               <small>Room feel</small>
               <strong>The game rewards timing, not command spam</strong>
-              <p>Fast setup matters, but the live corner wins or loses the room.</p>
+              <p>Fast setup matters, but the visible ring action is the actual game now.</p>
             </div>
           </div>
         </article>

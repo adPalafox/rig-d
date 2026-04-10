@@ -6,7 +6,11 @@ import {
   getLiveCommandDefinition,
 } from "@/lib/content";
 import {
+  ArenaBeat,
   DebatePhase,
+  FighterAction,
+  FighterState,
+  ImpactType,
   JudgeResult,
   LiveCommandId,
   MatchCommand,
@@ -48,6 +52,13 @@ type RoomPlayerRecord = {
   lastSeenAt: number;
 };
 
+type RivalryRecord = {
+  roundsPlayed: number;
+  currentStreakPlayerId: string | null;
+  currentStreakCount: number;
+  winsByPlayer: Record<string, number>;
+};
+
 type AgentAssignmentRecord = {
   id: (typeof AGENT_DEFINITIONS)[number]["id"];
   expectedScore: number;
@@ -66,13 +77,13 @@ type MatchPlayerRecord = {
   cornerEnergy: number;
   lastEnergyTickAt: number;
   lastCommandAt: number | null;
-};
-
-type RivalryRecord = {
-  roundsPlayed: number;
-  currentStreakPlayerId: string | null;
-  currentStreakCount: number;
-  winsByPlayer: Record<string, number>;
+  momentum: number;
+  fighterState: FighterState;
+  fighterAction: FighterAction;
+  ringPosition: number;
+  staggerLevel: number;
+  hypeLevel: number;
+  lastImpactType: ImpactType;
 };
 
 type RoomRecord = {
@@ -96,11 +107,12 @@ type MatchRecord = {
   phaseDeadlineAt: number | null;
   currentPhase: DebatePhase | null;
   revealAt: number | null;
+  currentBeat: number;
   players: MatchPlayerRecord[];
   turns: MatchTurn[];
   commands: MatchCommand[];
   momentumTimeline: MomentumPoint[];
-  momentumByPlayer: Record<string, number>;
+  arenaTimeline: ArenaBeat[];
   judgeResult: JudgeResult | null;
   events: MatchEvent[];
   seriesRecorded: boolean;
@@ -158,6 +170,25 @@ function currentPlayerName(playerId: string) {
   return getStore().players.get(playerId)?.name ?? "Unknown";
 }
 
+function getOpponent(match: MatchRecord, playerId: string) {
+  return match.players.find((player) => player.playerId !== playerId)!;
+}
+
+function makeDefaultFighterState(): Pick<
+  MatchPlayerRecord,
+  "momentum" | "fighterState" | "fighterAction" | "ringPosition" | "staggerLevel" | "hypeLevel" | "lastImpactType"
+> {
+  return {
+    momentum: 0,
+    fighterState: "guarded",
+    fighterAction: "idle",
+    ringPosition: 0,
+    staggerLevel: 0,
+    hypeLevel: 0,
+    lastImpactType: "recovery",
+  };
+}
+
 function assignAgents(match: MatchRecord) {
   const shuffled = shuffle(AGENT_DEFINITIONS).slice(0, 2);
   match.players.forEach((player, index) => {
@@ -169,27 +200,20 @@ function assignAgents(match: MatchRecord) {
       rigScore: null,
       rigLabel: null,
     };
-    match.momentumByPlayer[player.playerId] = 0;
+    Object.assign(player, makeDefaultFighterState());
   });
 }
 
 function refreshPlayerEnergy(player: MatchPlayerRecord, now = Date.now()) {
-  if (!player.lastEnergyTickAt) {
-    player.lastEnergyTickAt = now;
-    return;
-  }
   const elapsedTicks = Math.floor((now - player.lastEnergyTickAt) / ENERGY_REGEN_MS);
   if (elapsedTicks <= 0) return;
   player.cornerEnergy = Math.min(ENERGY_CAP, player.cornerEnergy + elapsedTicks);
   player.lastEnergyTickAt += elapsedTicks * ENERGY_REGEN_MS;
 }
 
-function refreshAllEnergy(match: MatchRecord, now = Date.now()) {
+function refreshAllEnergy(match: MatchRecord) {
+  const now = Date.now();
   match.players.forEach((player) => refreshPlayerEnergy(player, now));
-}
-
-function getOpponent(match: MatchRecord, playerId: string) {
-  return match.players.find((player) => player.playerId !== playerId)!;
 }
 
 function startSetup(match: MatchRecord) {
@@ -200,7 +224,7 @@ function startSetup(match: MatchRecord) {
   match.state = "setup_open";
   match.setupDeadlineAt = Date.now() + getSetupDurationMs();
   match.updatedAt = Date.now();
-  addEvent(match, "setup_started", "Corners are open. You have 18 seconds to set the plan.");
+  addEvent(match, "setup_started", "Corners are open. Get the fighter stance set before the bell.");
 }
 
 function startLivePhase(match: MatchRecord, phase: DebatePhase) {
@@ -208,128 +232,86 @@ function startLivePhase(match: MatchRecord, phase: DebatePhase) {
   match.currentPhase = phase;
   match.phaseDeadlineAt = Date.now() + getPhaseDurationMs();
   match.updatedAt = Date.now();
-  addEvent(match, "live_phase_started", `${phase[0]!.toUpperCase()}${phase.slice(1)} bell. Corners are live.`);
+  addEvent(match, "live_phase_started", `${phase[0]!.toUpperCase()}${phase.slice(1)} bell. Fighters are live.`);
 }
 
 function setupFitsAgent(agentId: AgentAssignmentRecord["id"], setup: SetupPlan | null) {
-  if (!setup) {
-    return {
-      score: -6,
-      explanation: `${getAgentDefinition(agentId).name} went in with almost no corner structure.`,
-    };
-  }
+  if (!setup) return -6;
 
   const openingFit: Record<AgentAssignmentRecord["id"], Record<SetupPlan["openingStyle"], number>> = {
-    Bruiser: { fast_start: 4, measured: 1, needle: 1, showboat: -2 },
+    Bruiser: { fast_start: 4, measured: 0, needle: 1, showboat: -1 },
     Gremlin: { fast_start: 1, measured: 0, needle: 4, showboat: 2 },
     Scholar: { fast_start: -1, measured: 4, needle: 2, showboat: -3 },
-    Showman: { fast_start: 2, measured: 0, needle: 1, showboat: 4 },
+    Showman: { fast_start: 2, measured: 0, needle: 0, showboat: 4 },
   };
   const pressureFit: Record<AgentAssignmentRecord["id"], Record<SetupPlan["pressureRule"], number>> = {
-    Bruiser: { counter_first: 1, reset_frame: -1, trade_shots: 4, stay_grounded: 1 },
-    Gremlin: { counter_first: 2, reset_frame: 1, trade_shots: -1, stay_grounded: 2 },
-    Scholar: { counter_first: 3, reset_frame: 4, trade_shots: -3, stay_grounded: 2 },
-    Showman: { counter_first: 1, reset_frame: 1, trade_shots: 2, stay_grounded: 2 },
+    Bruiser: { counter_first: 0, reset_frame: -1, trade_shots: 4, stay_grounded: 1 },
+    Gremlin: { counter_first: 2, reset_frame: 1, trade_shots: 0, stay_grounded: 2 },
+    Scholar: { counter_first: 2, reset_frame: 4, trade_shots: -3, stay_grounded: 3 },
+    Showman: { counter_first: 1, reset_frame: 0, trade_shots: 2, stay_grounded: 1 },
   };
   const riskFit: Record<AgentAssignmentRecord["id"], Record<SetupPlan["riskLevel"], number>> = {
-    Bruiser: { composed: 1, pressing: 3, all_in: -1 },
-    Gremlin: { composed: 0, pressing: 2, all_in: 1 },
+    Bruiser: { composed: 0, pressing: 3, all_in: 1 },
+    Gremlin: { composed: 0, pressing: 2, all_in: 2 },
     Scholar: { composed: 4, pressing: 1, all_in: -4 },
-    Showman: { composed: 0, pressing: 2, all_in: 3 },
+    Showman: { composed: -1, pressing: 2, all_in: 4 },
   };
 
-  let score =
-    openingFit[agentId][setup.openingStyle] +
-    pressureFit[agentId][setup.pressureRule] +
-    riskFit[agentId][setup.riskLevel];
-
-  if (setup.signatureLine) {
-    score += setup.signatureLine.length >= 8 && setup.signatureLine.length <= 48 ? 1 : 0;
-  }
-
-  score = Math.round(score * getAgentDefinition(agentId).promptSensitivity);
-
-  const explanation =
-    score >= 9
-      ? `${getAgentDefinition(agentId).name} got a setup that matches its lane.`
-      : score <= 0
-        ? `${getAgentDefinition(agentId).name} got pointed toward its own bad habits.`
-        : `${getAgentDefinition(agentId).name} got a usable starting frame without a real edge.`;
-
-  return { score, explanation };
-}
-
-function getTopicFit(agentId: AgentAssignmentRecord["id"], topic: MatchRecord["topic"], setup: SetupPlan | null) {
-  let score = 0;
-  if (agentId === "Bruiser" && topic.tags.some((tag) => ["simple", "high-emotion", "punchy"].includes(tag))) {
-    score += 3;
-  }
-  if (agentId === "Gremlin" && topic.tags.some((tag) => ["hot-take", "punchy", "behavior"].includes(tag))) {
-    score += 3;
-  }
-  if (agentId === "Scholar" && topic.tags.some((tag) => ["policy", "moderate", "tradeoffs", "work"].includes(tag))) {
-    score += 3;
-  }
-  if (agentId === "Showman" && topic.tags.some((tag) => ["culture", "hot-take", "high-emotion"].includes(tag))) {
-    score += 3;
-  }
-
-  if (setup?.riskLevel === "all_in" && topic.tags.includes("moderate")) score -= 2;
-  if (setup?.riskLevel === "composed" && topic.tags.includes("high-emotion")) score -= 1;
-  if (setup?.openingStyle === "showboat" && topic.tags.includes("policy")) score -= 1;
-  if (setup?.openingStyle === "measured" && topic.tags.includes("policy")) score += 1;
-
-  return score;
+  return Math.round(
+    (openingFit[agentId][setup.openingStyle] +
+      pressureFit[agentId][setup.pressureRule] +
+      riskFit[agentId][setup.riskLevel] +
+      (setup.signatureLine ? 1 : 0)) * getAgentDefinition(agentId).promptSensitivity,
+  );
 }
 
 function getRepeatedCommandCount(match: MatchRecord, playerId: string, phase: DebatePhase, commandId: LiveCommandId) {
   return match.commands.filter(
-    (command) =>
-      command.playerId === playerId && command.phase === phase && command.commandId === commandId,
+    (command) => command.playerId === playerId && command.phase === phase && command.commandId === commandId,
   ).length;
 }
 
 function getCommandAgentFit(agentId: AgentAssignmentRecord["id"], commandId: LiveCommandId) {
   const fit: Record<AgentAssignmentRecord["id"], Record<LiveCommandId, number>> = {
     Bruiser: {
-      push: 2,
-      reset: 0,
-      counter: 1,
-      stay_tight: 3,
-      crowd_pleaser: 0,
-      ground_it: 0,
-      one_example: 1,
-      big_finish: 1,
+      rush_in: 3,
+      back_off: -1,
+      slip_counter: 1,
+      cover_up: 0,
+      showboat: -1,
+      plant_your_feet: 2,
+      stick_the_jab: 1,
+      go_for_the_bell: 2,
     },
     Gremlin: {
-      push: 1,
-      reset: 0,
-      counter: 2,
-      stay_tight: -1,
-      crowd_pleaser: 1,
-      ground_it: 0,
-      one_example: 3,
-      big_finish: 1,
+      rush_in: 1,
+      back_off: 0,
+      slip_counter: 2,
+      cover_up: -1,
+      showboat: 2,
+      plant_your_feet: 0,
+      stick_the_jab: 3,
+      go_for_the_bell: 1,
     },
     Scholar: {
-      push: -1,
-      reset: 2,
-      counter: 2,
-      stay_tight: 1,
-      crowd_pleaser: -2,
-      ground_it: 3,
-      one_example: 1,
-      big_finish: -1,
+      rush_in: -2,
+      back_off: 1,
+      slip_counter: 3,
+      cover_up: 2,
+      showboat: -3,
+      plant_your_feet: 3,
+      stick_the_jab: 1,
+      go_for_the_bell: -2,
     },
     Showman: {
-      push: 1,
-      reset: 0,
-      counter: 0,
-      stay_tight: -1,
-      crowd_pleaser: 3,
-      ground_it: 1,
-      one_example: 0,
-      big_finish: 3,
+      rush_in: 1,
+      back_off: -1,
+      slip_counter: 1,
+      cover_up: 0,
+      showboat: 3,
+      plant_your_feet: 1,
+      stick_the_jab: 0,
+      go_for_the_bell: 4,
     },
   };
 
@@ -338,80 +320,127 @@ function getCommandAgentFit(agentId: AgentAssignmentRecord["id"], commandId: Liv
 
 function getCommandSetupFit(setup: SetupPlan | null, commandId: LiveCommandId, phase: DebatePhase) {
   if (!setup) return -1;
-
   let score = 0;
+
   const openingMatches: Record<SetupPlan["openingStyle"], LiveCommandId[]> = {
-    fast_start: ["push", "crowd_pleaser"],
-    measured: ["reset", "ground_it"],
-    needle: ["counter", "one_example"],
-    showboat: ["crowd_pleaser", "big_finish"],
+    fast_start: ["rush_in", "stick_the_jab"],
+    measured: ["back_off", "plant_your_feet"],
+    needle: ["slip_counter", "stick_the_jab"],
+    showboat: ["showboat", "go_for_the_bell"],
   };
   const pressureMatches: Record<SetupPlan["pressureRule"], LiveCommandId[]> = {
-    counter_first: ["counter"],
-    reset_frame: ["reset", "ground_it"],
-    trade_shots: ["push", "crowd_pleaser"],
-    stay_grounded: ["ground_it", "stay_tight", "one_example"],
+    counter_first: ["slip_counter"],
+    reset_frame: ["back_off", "plant_your_feet"],
+    trade_shots: ["rush_in", "go_for_the_bell"],
+    stay_grounded: ["cover_up", "plant_your_feet", "stick_the_jab"],
   };
   const riskMatches: Record<SetupPlan["riskLevel"], LiveCommandId[]> = {
-    composed: ["reset", "ground_it", "stay_tight"],
-    pressing: ["push", "counter", "one_example"],
-    all_in: ["crowd_pleaser", "big_finish", "push"],
+    composed: ["back_off", "cover_up", "plant_your_feet"],
+    pressing: ["rush_in", "slip_counter", "stick_the_jab"],
+    all_in: ["showboat", "go_for_the_bell", "rush_in"],
   };
 
   if (openingMatches[setup.openingStyle].includes(commandId)) score += phase === "opening" ? 2 : 1;
   if (pressureMatches[setup.pressureRule].includes(commandId)) score += 2;
   if (riskMatches[setup.riskLevel].includes(commandId)) score += 1;
-
-  if (setup.riskLevel === "composed" && ["crowd_pleaser", "big_finish"].includes(commandId)) score -= 2;
-  if (setup.riskLevel === "all_in" && ["reset", "ground_it"].includes(commandId)) score -= 1;
-  if (phase !== "closing" && commandId === "big_finish") score -= 2;
+  if (phase !== "closing" && commandId === "go_for_the_bell") score -= 2;
+  if (setup.riskLevel === "composed" && ["showboat", "go_for_the_bell"].includes(commandId)) score -= 2;
+  if (setup.riskLevel === "all_in" && ["back_off", "cover_up"].includes(commandId)) score -= 1;
 
   return score;
 }
 
-function swingTagForImpact(value: number) {
-  if (value >= 6) return "Stole the crowd";
-  if (value >= 3) return "Recovered";
-  if (value >= 1) return "Held shape";
-  if (value <= -4) return "Lost structure";
-  if (value <= -2) return "Overextended";
-  return "Jabbed";
+function getPhaseWeight(phase: DebatePhase) {
+  if (phase === "opening") return 1;
+  if (phase === "rebuttal") return 1.2;
+  return 1.4;
 }
 
-function getMomentumGap(match: MatchRecord, playerId: string) {
-  const playerMomentum = match.momentumByPlayer[playerId] ?? 0;
-  const opponentMomentum = match.momentumByPlayer[getOpponent(match, playerId).playerId] ?? 0;
-  return playerMomentum - opponentMomentum;
-}
+function getImpactProfile(commandId: LiveCommandId, value: number) {
+  const swingTag =
+    value >= 7
+      ? "Crowd erupted"
+      : value >= 4
+        ? "Took space"
+        : value >= 1
+          ? "Held center"
+          : value <= -5
+            ? "Blew the exchange"
+            : value <= -2
+              ? "Got clipped"
+              : "Kept moving";
 
-function evaluateLiveCommand(match: MatchRecord, player: MatchPlayerRecord, commandId: LiveCommandId, phase: DebatePhase) {
-  const setup = player.setupPlan;
-  const repeatCount = getRepeatedCommandCount(match, player.playerId, phase, commandId);
-  const comebackBonus = getMomentumGap(match, player.playerId) < 0 ? 2 : 0;
-  const agentFit = getCommandAgentFit(player.agent!.id, commandId);
-  const setupFit = getCommandSetupFit(setup, commandId, phase);
-  const repeatPenalty = repeatCount * 2;
-  const value = 1 + agentFit + setupFit + comebackBonus - repeatPenalty;
-  return {
-    value,
-    swingTag: swingTagForImpact(value),
+  const profiles: Record<
+    LiveCommandId,
+    { state: FighterState; action: FighterAction; impact: ImpactType; commentary: string }
+  > = {
+    rush_in: {
+      state: value >= 0 ? "advancing" : "overextended",
+      action: value >= 0 ? "lunge" : "stumble",
+      impact: value >= 0 ? "hit" : "crash",
+      commentary: value >= 0 ? "crashed into the pocket and shoved the ring back" : "ran in too hot and got caught reaching",
+    },
+    back_off: {
+      state: value >= 0 ? "recovering" : "guarded",
+      action: value >= 0 ? "idle" : "recoil",
+      impact: "recovery",
+      commentary: value >= 0 ? "pulled out of danger and reset the feet" : "gave up too much ground trying to breathe",
+    },
+    slip_counter: {
+      state: value >= 0 ? "crowd_favorite" : "rocked",
+      action: value >= 0 ? "jab" : "recoil",
+      impact: value >= 0 ? "hit" : "whiff",
+      commentary: value >= 0 ? "made the whiff look stupid and snapped back clean" : "went fishing for the counter and missed the cue",
+    },
+    cover_up: {
+      state: value >= 0 ? "guarded" : "rocked",
+      action: value >= 0 ? "block" : "ringout_pressure",
+      impact: "block",
+      commentary: value >= 0 ? "shelled up and let the heat roll past" : "hid too long and let the room turn on it",
+    },
+    showboat: {
+      state: value >= 0 ? "crowd_favorite" : "overextended",
+      action: "taunt",
+      impact: value >= 0 ? "hype" : "crash",
+      commentary: value >= 0 ? "played to the crowd and actually stole the room" : "got greedy for attention and opened the chin",
+    },
+    plant_your_feet: {
+      state: value >= 0 ? "guarded" : "recovering",
+      action: value >= 0 ? "block" : "exhausted",
+      impact: value >= 0 ? "recovery" : "whiff",
+      commentary: value >= 0 ? "stopped the skid and stood its ground" : "froze up trying to look stable",
+    },
+    stick_the_jab: {
+      state: value >= 0 ? "advancing" : "guarded",
+      action: "jab",
+      impact: value >= 0 ? "hit" : "block",
+      commentary: value >= 0 ? "kept peppering the same ugly spot until it mattered" : "kept poking without making the room care",
+    },
+    go_for_the_bell: {
+      state: value >= 0 ? "crowd_favorite" : "rocked",
+      action: value >= 0 ? "lunge" : "stumble",
+      impact: value >= 0 ? "hit" : "crash",
+      commentary: value >= 0 ? "threw the wild finisher and the room lost its mind" : "sold out for the finish and nearly ate canvas",
+    },
   };
+
+  return { ...profiles[commandId], swingTag };
 }
 
 function maybeLockSetup(match: MatchRecord) {
-  if (match.state !== "setup_open") return false;
+  if (match.state !== "setup_open") return;
   const allSubmitted = match.players.every((player) => player.setupSubmittedAt);
   const expired = typeof match.setupDeadlineAt === "number" && Date.now() >= match.setupDeadlineAt;
-  if (!allSubmitted && !expired) return false;
+  if (!allSubmitted && !expired) return;
   match.setupDeadlineAt = null;
   match.updatedAt = Date.now();
-  addEvent(match, "setup_locked", "Corners are set. Opening bell incoming.");
+  addEvent(match, "setup_locked", "Gloves up. Opening bell incoming.");
   startLivePhase(match, "opening");
-  return true;
 }
 
 function markDisconnectedPlayers(match: MatchRecord) {
   if (!["waiting_for_players", "setup_open", "live_phase_open"].includes(match.state)) return;
+
   for (const player of match.players) {
     const roomPlayer = getStore().roomPlayers.get(roomPlayerKey(match.roomId, player.playerId));
     if (!roomPlayer) continue;
@@ -472,166 +501,59 @@ async function callOpenAIJson<T>(system: string, user: string): Promise<T | null
 }
 
 function createTurnText(args: {
-  agentId: AgentAssignmentRecord["id"];
   playerName: string;
-  setupPlan: SetupPlan | null;
+  agentId: AgentAssignmentRecord["id"];
   phase: DebatePhase;
+  setupPlan: SetupPlan | null;
+  phaseBeats: ArenaBeat[];
   topicTitle: string;
-  priorOpponentTurn: string | null;
-  phaseCommands: MatchCommand[];
-  swingTag: string;
-  microScore: number;
 }) {
-  const { agentId, playerName, setupPlan, phase, topicTitle, priorOpponentTurn, phaseCommands, swingTag, microScore } =
-    args;
+  const { playerName, agentId, phase, setupPlan, phaseBeats, topicTitle } = args;
   const agent = getAgentDefinition(agentId);
-  const openingLine: Record<AgentAssignmentRecord["id"], string[]> = {
-    Bruiser: [
-      `Listen up. ${topicTitle} is not complicated.`,
-      `Here is the blunt version: ${topicTitle} comes down to consequences.`,
-    ],
-    Gremlin: [
-      `Everyone keeps overthinking this, so let me cut through the fog.`,
-      `This fight turns on one vivid point, and you can feel it immediately.`,
-    ],
-    Scholar: [
-      `The cleanest way to read ${topicTitle} is to separate rhetoric from outcomes.`,
-      `Before anyone gets dramatic, the real issue in ${topicTitle} is incentive design.`,
-    ],
-    Showman: [
-      `If you want the crowd version and the true version, they line up for once.`,
-      `The room can smell when an argument looks polished but collapses on contact.`,
-    ],
-  };
-  const rebuttalLine: Record<AgentAssignmentRecord["id"], string[]> = {
-    Bruiser: [
-      `That last answer looked busy and proved very little.`,
-      `They tried to dance past the hit and still walked into it.`,
-    ],
-    Gremlin: [
-      `Cute dodge. Still misses the thing real people notice first.`,
-      `They gave you smoke. Here is the part with teeth.`,
-    ],
-    Scholar: [
-      `The problem there is not tone. It is structure.`,
-      `They answered the vibe of the claim, not the claim itself.`,
-    ],
-    Showman: [
-      `That was a nice performance. I am still watching the scoreboard.`,
-      `They chased the camera angle and forgot the argument.`,
-    ],
-  };
-  const closingLine: Record<AgentAssignmentRecord["id"], string[]> = {
-    Bruiser: [
-      `Final point: strip away the noise and the better side is obvious.`,
-      `End of story. The stronger case survives contact with real life.`,
-    ],
-    Gremlin: [
-      `This is where underdogs steal it: the simpler line is also the truer one.`,
-      `If the room is honest, it already knows which case actually held together.`,
-    ],
-    Scholar: [
-      `To close, the winning case is the one with fewer leaps and cleaner incentives.`,
-      `A proper closing does not add drama. It removes doubt.`,
-    ],
-    Showman: [
-      `When the dust settles, one side still sounds brave and one side sounds right.`,
-      `This closing only asks one thing: which case survives outside the room?`,
-    ],
-  };
-
-  const pickedLead =
-    (phase === "opening"
-      ? openingLine
-      : phase === "rebuttal"
-        ? rebuttalLine
-        : closingLine)[agentId][microScore % 2]!;
-
-  const commands = phaseCommands.map((command) => command.label).slice(-2).join(", ");
-  const commandLine = commands ? ` The corner kept barking ${commands.toLowerCase()}, and the shift was visible.` : "";
-  const setupLine = setupPlan?.signatureLine ? ` It never lost the room-facing line: "${setupPlan.signatureLine}".` : "";
-  const swingLine =
-    swingTag === "Stole the crowd"
-      ? " The whole exchange suddenly tilted."
-      : swingTag === "Recovered"
-        ? " The fighter looked steadier after the adjustment."
-        : swingTag === "Lost structure"
-          ? " The pressure got loud and the structure bent."
-          : "";
-  const opponentLine = priorOpponentTurn
-    ? ` They leaned on "${priorOpponentTurn.slice(0, 80)}..." and that gap never closed.`
-    : "";
-
-  return `${pickedLead}${opponentLine}${commandLine}${setupLine}${swingLine}`.slice(
+  const beatFlavor = phaseBeats.slice(-2).map((beat) => `${beat.commandLabel.toLowerCase()} ${beat.commentary}`).join(" Then ");
+  const setupFlavor = setupPlan?.signatureLine ? `The corner kept yelling "${setupPlan.signatureLine}".` : "";
+  return `${playerName}'s ${agent.name} worked the ${phase} like a messy room fight about ${topicTitle.toLowerCase()}. ${beatFlavor}. ${setupFlavor}`.slice(
     0,
     agent.responseBudget * 5,
   );
 }
 
-function phaseCommandsForPlayer(match: MatchRecord, playerId: string, phase: DebatePhase) {
-  return match.commands.filter((command) => command.playerId === playerId && command.phase === phase);
-}
-
 async function resolveTurn(match: MatchRecord, player: MatchPlayerRecord, phase: DebatePhase) {
   const agent = player.agent!;
   const playerName = currentPlayerName(player.playerId);
+  const phaseBeats = match.arenaTimeline.filter((beat) => beat.playerId === player.playerId && beat.phase === phase);
   const setupScore = setupFitsAgent(agent.id, player.setupPlan);
-  const topicFit = getTopicFit(agent.id, match.topic, player.setupPlan);
-  const phaseCommands = phaseCommandsForPlayer(match, player.playerId, phase);
-  const commandValue = phaseCommands.reduce((sum, command) => {
-    const point = match.momentumTimeline.find((entry) => entry.id === `${command.id}_momentum`);
+  const commandValue = phaseBeats.reduce((sum, beat) => {
+    const point = match.momentumTimeline.find((entry) => entry.id === `${beat.id}_momentum`);
     return sum + (point?.value ?? 0);
   }, 0);
-  const momentumGap = clamp(getMomentumGap(match, player.playerId) * 0.35, -8, 8);
-  const phaseModifier = phase === "opening" ? 0 : phase === "rebuttal" ? 2 : 4;
   const microScore = clamp(
-    Math.round(
-      agent.expectedScore +
-        setupScore.score * 0.35 +
-        commandValue * 1.1 +
-        topicFit * 0.45 +
-        momentumGap +
-        phaseModifier,
-    ),
+    Math.round(agent.expectedScore + setupScore * 0.35 + commandValue * 1.4 + getPhaseWeight(phase) * 2 + player.hypeLevel - player.staggerLevel),
     40,
     98,
   );
-
-  const swingValue = phaseCommands.reduce((sum, command) => {
-    const point = match.momentumTimeline.find((entry) => entry.id === `${command.id}_momentum`);
-    return sum + (point?.value ?? 0);
-  }, 0);
-  const swingTag = swingTagForImpact(swingValue);
-  const priorOpponentTurn =
-    phase === "opening"
-      ? null
-      : [...match.turns].reverse().find((turn) => turn.playerId !== player.playerId)?.content ?? null;
+  const swingTag = phaseBeats.slice(-1)[0]?.swingTag ?? "Held center";
 
   const openAiTurn = await callOpenAIJson<{ speech: string; microScore?: number }>(
-    "You are generating one debate turn for an AI arena game with live corner coaching. Return JSON with speech and microScore only.",
+    "You are generating one short fight-call recap for a chaotic stickman boxing room. Return JSON with speech and microScore only.",
     JSON.stringify({
-      topic: match.topic.prompt,
+      topic: match.topic.title,
       phase,
       agent,
       setupPlan: player.setupPlan,
-      commands: phaseCommands,
-      priorOpponentTurn,
-      swingTag,
+      phaseBeats,
     }),
   );
 
   const content =
     openAiTurn?.speech?.trim() ||
     createTurnText({
-      agentId: agent.id,
       playerName,
-      setupPlan: player.setupPlan,
+      agentId: agent.id,
       phase,
+      setupPlan: player.setupPlan,
+      phaseBeats,
       topicTitle: match.topic.title,
-      priorOpponentTurn,
-      phaseCommands,
-      swingTag,
-      microScore,
     });
 
   match.turns.push({
@@ -643,15 +565,11 @@ async function resolveTurn(match: MatchRecord, player: MatchPlayerRecord, phase:
     content,
     microScore: clamp(openAiTurn?.microScore ?? microScore, 40, 98),
     swingTag,
-    momentumDelta: swingValue,
+    momentumDelta: commandValue,
     createdAt: Date.now(),
   });
 
-  addEvent(
-    match,
-    "turn_resolved",
-    `${playerName}'s ${agent.id} finished the ${phase} with ${swingTag.toLowerCase()}.`,
-  );
+  addEvent(match, "turn_resolved", `${playerName}'s ${agent.id} ended the ${phase} looking ${swingTag.toLowerCase()}.`);
 }
 
 function categoryScores(score: number, turns: MatchTurn[]) {
@@ -663,30 +581,23 @@ function categoryScores(score: number, turns: MatchTurn[]) {
     clarity: spread(opening, -2),
     relevance: spread(rebuttal, -1),
     rebuttal: spread(rebuttal, 0),
-    evidence: spread(opening, -3),
+    evidence: spread(opening, -4),
     consistency: spread(closing, -1),
   };
 }
 
 function determineDecisiveMoment(match: MatchRecord) {
   if (match.momentumTimeline.length === 0) return null;
-  const decisive = [...match.momentumTimeline].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))[0]!;
-  const sameWindow = match.commands
-    .filter(
-      (command) =>
-        command.playerId === decisive.playerId &&
-        command.phase === decisive.phase &&
-        command.createdAt <= decisive.createdAt,
-    )
+  const decisive = [...match.momentumTimeline].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))[0]!;
+  const chain = match.commands
+    .filter((command) => command.playerId === decisive.playerId && command.phase === decisive.phase && command.createdAt <= decisive.createdAt)
     .slice(-2);
-  const commandIds = sameWindow.map((command) => command.commandId);
-  const labels = sameWindow.map((command) => command.label).join(" + ");
   return {
     playerId: decisive.playerId,
     playerName: decisive.playerName,
     phase: decisive.phase,
-    commands: commandIds,
-    summary: `${labels} swung the ${decisive.phase} and ${decisive.swingTag.toLowerCase()}.`,
+    commands: chain.map((command) => command.commandId),
+    summary: `${chain.map((command) => command.label).join(" + ")} broke the stance.`,
     swingValue: decisive.value,
   } satisfies JudgeResult["decisiveMoment"];
 }
@@ -695,15 +606,14 @@ function updateRivalry(match: MatchRecord) {
   if (match.seriesRecorded || !match.judgeResult) return;
   const room = getStore().rooms.get(match.roomId);
   if (!room) return;
-  const rivalry = room.rivalry;
-  rivalry.roundsPlayed += 1;
-  rivalry.winsByPlayer[match.judgeResult.winnerPlayerId] =
-    (rivalry.winsByPlayer[match.judgeResult.winnerPlayerId] ?? 0) + 1;
-  if (rivalry.currentStreakPlayerId === match.judgeResult.winnerPlayerId) {
-    rivalry.currentStreakCount += 1;
+  room.rivalry.roundsPlayed += 1;
+  room.rivalry.winsByPlayer[match.judgeResult.winnerPlayerId] =
+    (room.rivalry.winsByPlayer[match.judgeResult.winnerPlayerId] ?? 0) + 1;
+  if (room.rivalry.currentStreakPlayerId === match.judgeResult.winnerPlayerId) {
+    room.rivalry.currentStreakCount += 1;
   } else {
-    rivalry.currentStreakPlayerId = match.judgeResult.winnerPlayerId;
-    rivalry.currentStreakCount = 1;
+    room.rivalry.currentStreakPlayerId = match.judgeResult.winnerPlayerId;
+    room.rivalry.currentStreakCount = 1;
   }
   match.seriesRecorded = true;
 }
@@ -719,104 +629,74 @@ async function judgeMatch(match: MatchRecord) {
       40,
       98,
     );
-    const agent = player.agent!;
-    agent.actualScore = actual;
-    agent.rigScore = actual - agent.expectedScore;
-    agent.rigLabel = scoreLabel(agent.rigScore);
+    player.agent!.actualScore = actual;
+    player.agent!.rigScore = actual - player.agent!.expectedScore;
+    player.agent!.rigLabel = scoreLabel(player.agent!.rigScore);
     scoresByPlayer[player.playerId] = actual;
     scoresByCategory[player.playerId] = categoryScores(actual, turns);
   }
 
-  const sorted = [...match.players].sort(
-    (left, right) => scoresByPlayer[right.playerId]! - scoresByPlayer[left.playerId]!,
-  );
-  let winner = sorted[0]!;
-  let confidence =
-    0.7 + Math.min(0.24, Math.abs(scoresByPlayer[sorted[0]!.playerId]! - scoresByPlayer[sorted[1]!.playerId]!) / 100);
-
+  const winner = [...match.players].sort((a, b) => scoresByPlayer[b.playerId]! - scoresByPlayer[a.playerId]!)[0]!;
+  const upset = [...match.players].sort((a, b) => (b.agent?.rigScore ?? -99) - (a.agent?.rigScore ?? -99))[0]!;
   const decisiveMoment = determineDecisiveMoment(match);
+  const confidence = Number(
+    (0.7 + Math.min(0.24, Math.abs(scoresByPlayer[winner.playerId]! - scoresByPlayer[getOpponent(match, winner.playerId).playerId]!) / 100)).toFixed(2),
+  );
 
-  const openAiJudge = await callOpenAIJson<{
-    winnerPlayerId: string;
-    reasonSummary: string;
-    confidence: number;
-    coachingImpactSummary?: string;
-  }>(
-    "You are the strict judge for a two-player debate game with visible corner coaching. Return JSON with winnerPlayerId, reasonSummary, confidence, and coachingImpactSummary.",
+  const openAiJudge = await callOpenAIJson<{ reasonSummary: string; coachingImpactSummary: string }>(
+    "You are writing a short ringside summary for a chaotic stickman boxing game. Return JSON with reasonSummary and coachingImpactSummary.",
     JSON.stringify({
-      topic: match.topic,
-      turns: match.turns,
-      commands: match.commands,
-      players: match.players.map((player) => ({
-        playerId: player.playerId,
-        name: currentPlayerName(player.playerId),
-        agent: player.agent,
-        setupPlan: player.setupPlan,
-      })),
+      topic: match.topic.title,
+      arenaTimeline: match.arenaTimeline.slice(-10),
+      decisiveMoment,
+      winner: currentPlayerName(winner.playerId),
+      upset: currentPlayerName(upset.playerId),
     }),
   );
 
-  if (openAiJudge?.winnerPlayerId && scoresByPlayer[openAiJudge.winnerPlayerId] !== undefined) {
-    winner = match.players.find((player) => player.playerId === openAiJudge.winnerPlayerId) ?? winner;
-    confidence = clamp(openAiJudge.confidence ?? confidence, 0.5, 0.99);
-  }
-
-  const upsetPlayer = [...match.players].sort(
-    (left, right) => (right.agent?.rigScore ?? -99) - (left.agent?.rigScore ?? -99),
-  )[0]!;
-
-  const coachingImpactSummary =
-    openAiJudge?.coachingImpactSummary?.trim() ||
-    `${currentPlayerName(winner.playerId)} won the room, while ${currentPlayerName(
-      upsetPlayer.playerId,
-    )} created the bigger coaching swing.`;
-
-  const reasonSummary =
-    openAiJudge?.reasonSummary?.trim() ||
-    `${currentPlayerName(winner.playerId)} kept the cleaner shape under pressure and converted more live corner help.`;
-
-  const result = {
+  match.judgeResult = {
     winnerPlayerId: winner.playerId,
     scoresByPlayer,
     scoresByCategory,
-    reasonSummary,
-    confidence: Number(Math.max(0.66, confidence).toFixed(2)),
+    reasonSummary:
+      openAiJudge?.reasonSummary?.trim() ||
+      `${currentPlayerName(winner.playerId)} took the room by controlling the center and surviving the mess better.`,
+    confidence,
     decisiveMoment,
-    coachingImpactSummary,
-  } satisfies JudgeResult;
+    coachingImpactSummary:
+      openAiJudge?.coachingImpactSummary?.trim() ||
+      `${currentPlayerName(upset.playerId)} created the bigger collapse-or-comeback swing in the room.`,
+  };
 
-  match.judgeResult = result;
   if (decisiveMoment) {
     addEvent(match, "decisive_moment_found", decisiveMoment.summary);
   }
-  addEvent(match, "judging_complete", `Judge confidence settled at ${(result.confidence * 100).toFixed(0)}%.`);
+  addEvent(match, "judging_complete", `Judge confidence settled at ${(confidence * 100).toFixed(0)}%.`);
   match.state = "reveal_ready";
   match.revealAt = Date.now();
+  match.currentPhase = null;
+  match.phaseDeadlineAt = null;
   match.updatedAt = Date.now();
-  addEvent(match, "reveal_ready", "Reveal unlocked. The corner chaos paid off for someone.");
+  addEvent(match, "reveal_ready", "Reveal unlocked. Someone just owned the room.");
   updateRivalry(match);
 }
 
 async function resolveCurrentPhase(match: MatchRecord) {
   if (match.state !== "live_phase_open" || !match.currentPhase) return;
   const phase = match.currentPhase;
-  addEvent(match, "live_phase_locked", `${phase[0]!.toUpperCase()}${phase.slice(1)} window closed.`);
+  addEvent(match, "live_phase_locked", `${phase[0]!.toUpperCase()}${phase.slice(1)} bell closed.`);
   match.phaseDeadlineAt = null;
-
   for (const player of match.players) {
     await resolveTurn(match, player, phase);
   }
-
   const nextPhase = PHASES[PHASES.indexOf(phase) + 1] ?? null;
   if (nextPhase) {
     startLivePhase(match, nextPhase);
-    return;
+  } else {
+    match.state = "judging";
+    match.updatedAt = Date.now();
+    await judgeMatch(match);
   }
-
-  match.state = "judging";
-  match.currentPhase = null;
-  match.updatedAt = Date.now();
-  await judgeMatch(match);
 }
 
 export async function ensureProgress(matchId: string) {
@@ -826,14 +706,9 @@ export async function ensureProgress(matchId: string) {
   refreshAllEnergy(match);
   markDisconnectedPlayers(match);
   if (match.state === "abandoned") return match;
-
   maybeLockSetup(match);
 
-  while (
-    match.state === "live_phase_open" &&
-    typeof match.phaseDeadlineAt === "number" &&
-    Date.now() >= match.phaseDeadlineAt
-  ) {
+  while (match.state === "live_phase_open" && match.phaseDeadlineAt && Date.now() >= match.phaseDeadlineAt) {
     await resolveCurrentPhase(match);
   }
 
@@ -886,19 +761,19 @@ export async function createRoom(hostPlayerId: string, origin: string) {
     joinedAt: Date.now(),
     lastSeenAt: Date.now(),
   });
-
-  const now = Date.now();
-  const match: MatchRecord = {
+  const baseState = makeDefaultFighterState();
+  store.matches.set(room.activeMatchId, {
     id: room.activeMatchId,
     roomId: room.id,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     state: "waiting_for_players",
     topic: shuffle(DEBATE_TOPICS)[0]!,
     setupDeadlineAt: null,
     phaseDeadlineAt: null,
     currentPhase: null,
     revealAt: null,
+    currentBeat: 0,
     players: [
       {
         playerId: hostPlayerId,
@@ -908,21 +783,20 @@ export async function createRoom(hostPlayerId: string, origin: string) {
         disconnectedSince: null,
         agent: null,
         cornerEnergy: ENERGY_CAP,
-        lastEnergyTickAt: now,
+        lastEnergyTickAt: Date.now(),
         lastCommandAt: null,
+        ...baseState,
       },
     ],
     turns: [],
     commands: [],
     momentumTimeline: [],
-    momentumByPlayer: {},
+    arenaTimeline: [],
     judgeResult: null,
     events: [],
     seriesRecorded: false,
-  };
-
-  addEvent(match, "player_joined", `${currentPlayerName(hostPlayerId)} created room ${room.code}.`);
-  store.matches.set(match.id, match);
+  });
+  addEvent(store.matches.get(room.activeMatchId)!, "player_joined", `${currentPlayerName(hostPlayerId)} created room ${room.code}.`);
   return buildSnapshot(room.id, hostPlayerId, origin);
 }
 
@@ -939,8 +813,8 @@ export async function joinRoomByCode(code: string, playerId: string, origin: str
       joinedAt: Date.now(),
       lastSeenAt: Date.now(),
     });
-    const match = store.matches.get(room.activeMatchId)!;
-    match.players.push({
+    const baseState = makeDefaultFighterState();
+    store.matches.get(room.activeMatchId)!.players.push({
       playerId,
       readyAt: null,
       setupPlan: null,
@@ -950,8 +824,9 @@ export async function joinRoomByCode(code: string, playerId: string, origin: str
       cornerEnergy: ENERGY_CAP,
       lastEnergyTickAt: Date.now(),
       lastCommandAt: null,
+      ...baseState,
     });
-    addEvent(match, "player_joined", `${currentPlayerName(playerId)} joined the room.`);
+    addEvent(store.matches.get(room.activeMatchId)!, "player_joined", `${currentPlayerName(playerId)} joined the room.`);
   }
   return buildSnapshot(room.id, playerId, origin);
 }
@@ -966,11 +841,9 @@ export async function setReady(matchId: string, playerId: string, origin: string
   player.readyAt = Date.now();
   match.updatedAt = Date.now();
   addEvent(match, "player_ready", `${currentPlayerName(playerId)} is ready.`);
-
-  if (match.players.length === 2 && match.players.every((entry) => entry.readyAt) && match.state === "waiting_for_players") {
+  if (match.state === "waiting_for_players" && match.players.length === 2 && match.players.every((entry) => entry.readyAt)) {
     startSetup(match);
   }
-
   return buildSnapshot(room.id, playerId, origin);
 }
 
@@ -985,7 +858,7 @@ export async function submitSetup(matchId: string, playerId: string, setupPlan: 
   player.setupPlan = setupPlan;
   player.setupSubmittedAt = Date.now();
   match.updatedAt = Date.now();
-  addEvent(match, "setup_submitted", `${currentPlayerName(playerId)} locked the corner plan.`);
+  addEvent(match, "setup_submitted", `${currentPlayerName(playerId)} locked a corner stance.`);
   maybeLockSetup(match);
   return buildSnapshot(match.roomId, playerId, origin);
 }
@@ -1002,26 +875,54 @@ export async function submitLiveCommand(matchId: string, playerId: string, comma
   }
 
   const player = match.players.find((entry) => entry.playerId === playerId);
-  if (!player) throw new Error("Player not in match.");
+  if (!player || !player.agent) throw new Error("Player not in match.");
+  const opponent = getOpponent(match, playerId);
   heartbeat(match.roomId, playerId);
   refreshPlayerEnergy(player);
-  const command = getLiveCommandDefinition(commandId);
 
+  const command = getLiveCommandDefinition(commandId);
   if (player.cornerEnergy < command.cost) {
     throw new Error("Not enough corner energy.");
   }
 
-  const impact = evaluateLiveCommand(match, player, commandId, match.currentPhase);
+  const repeatPenalty = getRepeatedCommandCount(match, playerId, match.currentPhase, commandId) * 2;
+  const comebackBonus = player.momentum < opponent.momentum ? 2 : 0;
+  const value =
+    1 +
+    getCommandAgentFit(player.agent.id, commandId) +
+    getCommandSetupFit(player.setupPlan, commandId, match.currentPhase) +
+    comebackBonus -
+    repeatPenalty;
+  const profile = getImpactProfile(commandId, value);
+
   player.cornerEnergy -= command.cost;
   player.lastEnergyTickAt = Date.now();
   player.lastCommandAt = Date.now();
+  player.momentum = clamp(player.momentum + value, -20, 20);
+  opponent.momentum = clamp(opponent.momentum - Math.max(1, Math.round(value * 0.6)), -20, 20);
+
+  player.fighterState = profile.state;
+  player.fighterAction = profile.action;
+  player.lastImpactType = profile.impact;
+  player.ringPosition = clamp(player.ringPosition + value, -12, 12);
+  player.staggerLevel = clamp(player.staggerLevel + (value < 0 ? 2 : -1), 0, 10);
+  player.hypeLevel = clamp(player.hypeLevel + (profile.impact === "hype" ? 3 : value > 0 ? 1 : -1), 0, 10);
+
+  opponent.fighterState =
+    value >= 5 ? "rocked" : value >= 2 ? "recovering" : value <= -2 ? "crowd_favorite" : "guarded";
+  opponent.fighterAction =
+    value >= 5 ? "stumble" : value >= 2 ? "recoil" : value <= -2 ? "taunt" : "block";
+  opponent.lastImpactType = value >= 1 ? "hit" : profile.impact === "crash" ? "recovery" : "block";
+  opponent.ringPosition = clamp(opponent.ringPosition - value, -12, 12);
+  opponent.staggerLevel = clamp(opponent.staggerLevel + Math.max(0, Math.round(value / 2)), 0, 10);
+  opponent.hypeLevel = clamp(opponent.hypeLevel + (value < 0 ? 2 : -1), 0, 10);
 
   const commandEntry: MatchCommand = {
     id: randomId("command"),
     phase: match.currentPhase,
-    playerId: player.playerId,
-    playerName: currentPlayerName(player.playerId),
-    agentId: player.agent!.id,
+    playerId,
+    playerName: currentPlayerName(playerId),
+    agentId: player.agent.id,
     commandId,
     label: command.label,
     cost: command.cost,
@@ -1029,31 +930,46 @@ export async function submitLiveCommand(matchId: string, playerId: string, comma
     createdAt: Date.now(),
   };
   match.commands.push(commandEntry);
-  match.momentumByPlayer[player.playerId] = (match.momentumByPlayer[player.playerId] ?? 0) + impact.value;
+
   const momentumPoint: MomentumPoint = {
     id: `${commandEntry.id}_momentum`,
     phase: match.currentPhase,
-    playerId: player.playerId,
+    playerId,
     playerName: commandEntry.playerName,
     commandId,
     commandLabel: command.label,
-    value: impact.value,
-    swingTag: impact.swingTag,
+    value,
+    swingTag: profile.swingTag,
     createdAt: commandEntry.createdAt,
   };
   match.momentumTimeline.push(momentumPoint);
+
+  match.currentBeat += 1;
+  const beat: ArenaBeat = {
+    id: randomId("beat"),
+    phase: match.currentPhase,
+    beatNumber: match.currentBeat,
+    playerId,
+    playerName: commandEntry.playerName,
+    agentId: player.agent.id,
+    commandId,
+    commandLabel: command.label,
+    fighterState: player.fighterState,
+    fighterAction: player.fighterAction,
+    ringPosition: player.ringPosition,
+    staggerLevel: player.staggerLevel,
+    hypeLevel: player.hypeLevel,
+    impactType: profile.impact,
+    swingTag: profile.swingTag,
+    commentary: profile.commentary,
+    createdAt: commandEntry.createdAt,
+  };
+  match.arenaTimeline.push(beat);
   match.updatedAt = Date.now();
 
-  addEvent(
-    match,
-    "command_used",
-    `${commandEntry.playerName} barked ${command.label}. ${impact.swingTag}.`,
-  );
-  addEvent(
-    match,
-    "momentum_updated",
-    `${commandEntry.playerName} shifted the room with ${command.label}.`,
-  );
+  addEvent(match, "command_used", `${commandEntry.playerName} yelled ${command.label}.`);
+  addEvent(match, "arena_beat_resolved", `${commandEntry.playerName}'s ${player.agent.id} ${profile.commentary}.`);
+  addEvent(match, "momentum_updated", `${commandEntry.playerName} made the ring tilt ${profile.swingTag.toLowerCase()}.`);
 
   return buildSnapshot(match.roomId, playerId, origin);
 }
@@ -1072,12 +988,7 @@ export async function buildSnapshot(roomId: string, viewerPlayerId: string | nul
       id: room.id,
       code: room.code,
       shareUrl: `${origin}/join/${room.code}`,
-      rivalry: {
-        roundsPlayed: room.rivalry.roundsPlayed,
-        currentStreakPlayerId: room.rivalry.currentStreakPlayerId,
-        currentStreakCount: room.rivalry.currentStreakCount,
-        winsByPlayer: { ...room.rivalry.winsByPlayer },
-      },
+      rivalry: { ...room.rivalry, winsByPlayer: { ...room.rivalry.winsByPlayer } },
     },
     match: {
       id: match.id,
@@ -1088,12 +999,12 @@ export async function buildSnapshot(roomId: string, viewerPlayerId: string | nul
       currentPhase: match.currentPhase,
       startedAt: match.createdAt,
       revealAt: match.revealAt,
+      currentBeat: match.currentBeat,
     },
     viewerPlayerId,
     players: match.players.map((player) => {
       const profile = getStore().players.get(player.playerId)!;
       const agent = player.agent ? getAgentDefinition(player.agent.id) : null;
-      const activeCommandFeed = match.commands.filter((command) => command.playerId === player.playerId).slice(-3).reverse();
       return {
         id: player.playerId,
         name: profile.name,
@@ -1118,13 +1029,20 @@ export async function buildSnapshot(roomId: string, viewerPlayerId: string | nul
         rigLabel: player.agent?.rigLabel ?? null,
         cornerEnergy: player.cornerEnergy,
         lastCommandAt: player.lastCommandAt,
-        activeCommandFeed,
-        momentum: match.momentumByPlayer[player.playerId] ?? 0,
+        activeCommandFeed: match.commands.filter((command) => command.playerId === player.playerId).slice(-3).reverse(),
+        momentum: player.momentum,
+        fighterState: player.fighterState,
+        fighterAction: player.fighterAction,
+        ringPosition: player.ringPosition,
+        staggerLevel: player.staggerLevel,
+        hypeLevel: player.hypeLevel,
+        lastImpactType: player.lastImpactType,
       };
     }),
     turnLog: [...match.turns],
     commandFeed: [...match.commands].slice(-12).reverse(),
     momentumTimeline: [...match.momentumTimeline],
+    arenaTimeline: [...match.arenaTimeline].slice(-16).reverse(),
     judgeResult: match.judgeResult,
     events: [...match.events].slice(0, 12),
   };
@@ -1150,7 +1068,7 @@ export async function startRematch(roomId: string, origin: string) {
 
   room.activeMatchId = randomId("match");
   const now = Date.now();
-  const match: MatchRecord = {
+  store.matches.set(room.activeMatchId, {
     id: room.activeMatchId,
     roomId: room.id,
     createdAt: now,
@@ -1161,6 +1079,7 @@ export async function startRematch(roomId: string, origin: string) {
     phaseDeadlineAt: null,
     currentPhase: null,
     revealAt: null,
+    currentBeat: 0,
     players: room.playerIds.map((playerId) => ({
       playerId,
       readyAt: null,
@@ -1171,16 +1090,16 @@ export async function startRematch(roomId: string, origin: string) {
       cornerEnergy: ENERGY_CAP,
       lastEnergyTickAt: now,
       lastCommandAt: null,
+      ...makeDefaultFighterState(),
     })),
     turns: [],
     commands: [],
     momentumTimeline: [],
-    momentumByPlayer: {},
+    arenaTimeline: [],
     judgeResult: null,
     events: [],
     seriesRecorded: false,
-  };
-  addEvent(match, "player_joined", "Same room, fresh agents, same grudge.");
-  store.matches.set(match.id, match);
+  });
+  addEvent(store.matches.get(room.activeMatchId)!, "player_joined", "Same room, fresh gloves, same grudge.");
   return buildSnapshot(room.id, room.playerIds[0]!, origin);
 }

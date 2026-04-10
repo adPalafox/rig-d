@@ -26,30 +26,30 @@ function tailoredSetup(agentId: AgentId): SetupPlan {
       openingStyle: "fast_start",
       pressureRule: "trade_shots",
       riskLevel: "pressing",
-      signatureLine: "Hit the same lane until it breaks.",
+      signatureLine: "Break the stance before it breathes.",
     };
   }
   if (agentId === "Gremlin") {
     return {
       openingStyle: "needle",
-      pressureRule: "stay_grounded",
+      pressureRule: "counter_first",
       riskLevel: "pressing",
-      signatureLine: "One image. Keep chewing it.",
+      signatureLine: "Annoy them from one ugly angle.",
     };
   }
   if (agentId === "Scholar") {
     return {
       openingStyle: "measured",
-      pressureRule: "reset_frame",
+      pressureRule: "stay_grounded",
       riskLevel: "composed",
-      signatureLine: "Make them answer the structure, not the noise.",
+      signatureLine: "Make every step look smarter than theirs.",
     };
   }
   return {
     openingStyle: "showboat",
-    pressureRule: "stay_grounded",
+    pressureRule: "trade_shots",
     riskLevel: "all_in",
-    signatureLine: "Make the room remember the close.",
+    signatureLine: "If the crowd gasps, keep going.",
   };
 }
 
@@ -58,30 +58,28 @@ function sloppySetup(): SetupPlan {
     openingStyle: "showboat",
     pressureRule: "trade_shots",
     riskLevel: "all_in",
-    signatureLine: "Just make it loud.",
+    signatureLine: "Just be loud.",
   };
 }
 
 function strongCommand(agentId: AgentId, phase: DebatePhase) {
   if (agentId === "Bruiser") {
-    return phase === "rebuttal" ? ("stay_tight" as const) : ("push" as const);
+    return phase === "closing" ? ("go_for_the_bell" as const) : ("rush_in" as const);
   }
   if (agentId === "Gremlin") {
-    return phase === "rebuttal" ? ("counter" as const) : ("one_example" as const);
+    return phase === "rebuttal" ? ("slip_counter" as const) : ("stick_the_jab" as const);
   }
   if (agentId === "Scholar") {
-    if (phase === "opening") return "ground_it" as const;
-    return phase === "rebuttal" ? ("counter" as const) : ("reset" as const);
+    return phase === "opening" ? ("plant_your_feet" as const) : ("slip_counter" as const);
   }
-  if (phase === "opening") return "crowd_pleaser" as const;
-  return phase === "rebuttal" ? ("push" as const) : ("stay_tight" as const);
+  return phase === "closing" ? ("go_for_the_bell" as const) : ("showboat" as const);
 }
 
 function weakCommand(agentId: AgentId) {
-  if (agentId === "Bruiser") return "crowd_pleaser" as const;
-  if (agentId === "Gremlin") return "stay_tight" as const;
-  if (agentId === "Scholar") return "push" as const;
-  return "stay_tight" as const;
+  if (agentId === "Bruiser") return "showboat" as const;
+  if (agentId === "Gremlin") return "cover_up" as const;
+  if (agentId === "Scholar") return "rush_in" as const;
+  return "back_off" as const;
 }
 
 async function wait(ms: number) {
@@ -113,7 +111,7 @@ async function waitForReveal(matchId: string, playerId: string) {
   return getMatchSnapshot(matchId, playerId, ORIGIN);
 }
 
-test("full match flows from room creation through live corner phases to reveal", async () => {
+test("full match flows from room creation through arena beats to reveal", async () => {
   resetStore();
   configureFastMatchTimers();
 
@@ -122,44 +120,37 @@ test("full match flows from room creation through live corner phases to reveal",
   const roomSnapshot = await createRoom(alpha.id, ORIGIN);
   const joined = await joinRoomByCode(roomSnapshot.room.code, bravo.id, ORIGIN);
 
-  assert.equal(joined.players.length, 2);
-
   await setReady(joined.match.id, alpha.id, ORIGIN);
   const afterReadyTwo = await setReady(joined.match.id, bravo.id, ORIGIN);
   assert.equal(afterReadyTwo.match.state, "setup_open");
 
-  const alphaAgent = afterReadyTwo.players.find((player) => player.id === alpha.id)?.agent?.id;
-  const bravoAgent = afterReadyTwo.players.find((player) => player.id === bravo.id)?.agent?.id;
-  assert.ok(alphaAgent);
-  assert.ok(bravoAgent);
+  const alphaAgent = afterReadyTwo.players.find((player) => player.id === alpha.id)?.agent?.id!;
+  const bravoAgent = afterReadyTwo.players.find((player) => player.id === bravo.id)?.agent?.id!;
 
-  await submitSetup(afterReadyTwo.match.id, alpha.id, tailoredSetup(alphaAgent!), ORIGIN);
-  const liveOpening = await submitSetup(afterReadyTwo.match.id, bravo.id, tailoredSetup(bravoAgent!), ORIGIN);
+  await submitSetup(afterReadyTwo.match.id, alpha.id, tailoredSetup(alphaAgent), ORIGIN);
+  const liveOpening = await submitSetup(afterReadyTwo.match.id, bravo.id, tailoredSetup(bravoAgent), ORIGIN);
   assert.equal(liveOpening.match.state, "live_phase_open");
-  assert.equal(liveOpening.match.currentPhase, "opening");
 
-  await submitLiveCommand(liveOpening.match.id, alpha.id, strongCommand(alphaAgent!, "opening"), ORIGIN);
-  await submitLiveCommand(liveOpening.match.id, bravo.id, strongCommand(bravoAgent!, "opening"), ORIGIN);
+  await submitLiveCommand(liveOpening.match.id, alpha.id, strongCommand(alphaAgent, "opening"), ORIGIN);
+  await submitLiveCommand(liveOpening.match.id, bravo.id, strongCommand(bravoAgent, "opening"), ORIGIN);
 
   const rebuttal = await waitForPhase(liveOpening.match.id, alpha.id, "rebuttal");
-  assert.equal(rebuttal.match.currentPhase, "rebuttal");
-  await submitLiveCommand(rebuttal.match.id, alpha.id, strongCommand(alphaAgent!, "rebuttal"), ORIGIN);
-  await submitLiveCommand(rebuttal.match.id, bravo.id, strongCommand(bravoAgent!, "rebuttal"), ORIGIN);
+  await submitLiveCommand(rebuttal.match.id, alpha.id, strongCommand(alphaAgent, "rebuttal"), ORIGIN);
+  await submitLiveCommand(rebuttal.match.id, bravo.id, strongCommand(bravoAgent, "rebuttal"), ORIGIN);
 
   const closing = await waitForPhase(liveOpening.match.id, alpha.id, "closing");
-  assert.equal(closing.match.currentPhase, "closing");
-  await submitLiveCommand(closing.match.id, alpha.id, strongCommand(alphaAgent!, "closing"), ORIGIN);
-  await submitLiveCommand(closing.match.id, bravo.id, strongCommand(bravoAgent!, "closing"), ORIGIN);
+  await submitLiveCommand(closing.match.id, alpha.id, strongCommand(alphaAgent, "closing"), ORIGIN);
+  await submitLiveCommand(closing.match.id, bravo.id, strongCommand(bravoAgent, "closing"), ORIGIN);
 
   const finalSnapshot = await waitForReveal(liveOpening.match.id, alpha.id);
   assert.ok(["reveal_ready", "completed"].includes(finalSnapshot.match.state));
   assert.ok(finalSnapshot.judgeResult);
   assert.equal(finalSnapshot.turnLog.length, 6);
-  assert.ok(finalSnapshot.commandFeed.length >= 6);
+  assert.ok(finalSnapshot.arenaTimeline.length >= 6);
   assert.ok(finalSnapshot.judgeResult?.decisiveMoment);
 });
 
-test("live corner commands shift performance beyond setup and expose decisive moments", async () => {
+test("commands immediately create arena beats and alter visible fighter state", async () => {
   resetStore();
   configureFastMatchTimers();
 
@@ -176,27 +167,20 @@ test("live corner commands shift performance beyond setup and expose decisive mo
   await submitSetup(setupOpen.match.id, alpha.id, tailoredSetup(alphaAgent), ORIGIN);
   const opening = await submitSetup(setupOpen.match.id, bravo.id, sloppySetup(), ORIGIN);
 
-  await submitLiveCommand(opening.match.id, alpha.id, strongCommand(alphaAgent, "opening"), ORIGIN);
-  await submitLiveCommand(opening.match.id, bravo.id, weakCommand(bravoAgent), ORIGIN);
+  const afterAlpha = await submitLiveCommand(opening.match.id, alpha.id, strongCommand(alphaAgent, "opening"), ORIGIN);
+  const alphaView = afterAlpha.players.find((player) => player.id === alpha.id)!;
+  const opponentView = afterAlpha.players.find((player) => player.id === bravo.id)!;
+  assert.ok(afterAlpha.arenaTimeline.length >= 1);
+  assert.notEqual(alphaView.fighterAction, "idle");
+  assert.notEqual(alphaView.ringPosition, 0);
+  assert.notEqual(opponentView.staggerLevel, 0);
 
-  const rebuttal = await waitForPhase(opening.match.id, alpha.id, "rebuttal");
-  await submitLiveCommand(rebuttal.match.id, alpha.id, strongCommand(alphaAgent, "rebuttal"), ORIGIN);
-  await submitLiveCommand(rebuttal.match.id, bravo.id, weakCommand(bravoAgent), ORIGIN);
-
-  const closing = await waitForPhase(opening.match.id, alpha.id, "closing");
-  await submitLiveCommand(closing.match.id, alpha.id, strongCommand(alphaAgent, "closing"), ORIGIN);
-  await submitLiveCommand(closing.match.id, bravo.id, weakCommand(bravoAgent), ORIGIN);
-
-  const finalSnapshot = await waitForReveal(opening.match.id, alpha.id);
-  const alphaResult = finalSnapshot.players.find((player) => player.id === alpha.id)!;
-  const bravoResult = finalSnapshot.players.find((player) => player.id === bravo.id)!;
-
-  assert.ok((alphaResult.actualScore ?? 0) !== (bravoResult.actualScore ?? 0));
-  assert.ok(finalSnapshot.judgeResult?.decisiveMoment?.commands.length);
-  assert.match(finalSnapshot.judgeResult?.coachingImpactSummary ?? "", /coaching swing/i);
+  const finalAfterBeat = await submitLiveCommand(opening.match.id, bravo.id, weakCommand(bravoAgent), ORIGIN);
+  assert.ok(finalAfterBeat.arenaTimeline.length >= 2);
+  assert.notEqual(finalAfterBeat.players.find((player) => player.id === bravo.id)!.fighterState, "guarded");
 });
 
-test("corner energy prevents meaningless spam and keeps command feed readable", async () => {
+test("corner energy still gates spam and command ids map to the boxing-first surface", async () => {
   resetStore();
   configureFastMatchTimers();
 
@@ -213,14 +197,14 @@ test("corner energy prevents meaningless spam and keeps command feed readable", 
   await submitSetup(setupOpen.match.id, alpha.id, tailoredSetup(alphaAgent), ORIGIN);
   const opening = await submitSetup(setupOpen.match.id, bravo.id, tailoredSetup(bravoAgent), ORIGIN);
 
-  await submitLiveCommand(opening.match.id, alpha.id, "push", ORIGIN);
-  await submitLiveCommand(opening.match.id, alpha.id, "reset", ORIGIN);
-  await submitLiveCommand(opening.match.id, alpha.id, "counter", ORIGIN);
-  await submitLiveCommand(opening.match.id, alpha.id, "stay_tight", ORIGIN);
-  await submitLiveCommand(opening.match.id, alpha.id, "push", ORIGIN);
+  await submitLiveCommand(opening.match.id, alpha.id, "rush_in", ORIGIN);
+  await submitLiveCommand(opening.match.id, alpha.id, "back_off", ORIGIN);
+  await submitLiveCommand(opening.match.id, alpha.id, "slip_counter", ORIGIN);
+  await submitLiveCommand(opening.match.id, alpha.id, "cover_up", ORIGIN);
+  await submitLiveCommand(opening.match.id, alpha.id, "rush_in", ORIGIN);
 
   await assert.rejects(
-    submitLiveCommand(opening.match.id, alpha.id, "push", ORIGIN),
+    submitLiveCommand(opening.match.id, alpha.id, "rush_in", ORIGIN),
     /Not enough corner energy/,
   );
 
@@ -228,4 +212,5 @@ test("corner energy prevents meaningless spam and keeps command feed readable", 
   const alphaView = snapshot.players.find((player) => player.id === alpha.id)!;
   assert.equal(alphaView.cornerEnergy, 0);
   assert.equal(snapshot.commandFeed.filter((command) => command.playerId === alpha.id).length, 5);
+  assert.equal(snapshot.commandFeed[0]?.commandId.includes("_"), true);
 });

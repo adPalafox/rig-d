@@ -14,8 +14,8 @@ export default function HomePage() {
             <span className="kicker">Rig D Agent</span>
             <h1 className="title">Coach the wrong fighter into the right win.</h1>
             <p className="subtitle">
-              A private 1v1 stick-fighter debate arena where the setup is brief and the real game is yelling the right
-              thing from the corner at the right moment.
+              A private 1v1 stick-fighter room where the setup is brief, the corner gets loud, and the ring visibly
+              lurches every time you bark the right call.
             </p>
             <div className="hero-actions hero-actions--subtle">
               <Link className="ghost-button" href="#fighters">
@@ -58,8 +58,8 @@ export default function HomePage() {
         <div className="section-heading">
           <h2 className="section-title">Meet the fighters</h2>
           <p className="muted">
-            Each archetype is readable at a glance. The skill ceiling comes from figuring out which weakness can be
-            turned into a weapon once the live corner gets messy.
+            Each archetype is readable at a glance. The skill ceiling comes from figuring out which unstable little
+            menace you can drag through the room without watching it self-destruct.
           </p>
         </div>
         <div className="roster-showcase-grid">

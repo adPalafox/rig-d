@@ -1,4 +1,4 @@
-import { AgentId } from "@/lib/types";
+import { AgentId, FighterAction, FighterState } from "@/lib/types";
 
 type Pose = "idle" | "duel" | "victory" | "slump";
 type Emphasis = "none" | "ring" | "burst" | "spotlight";
@@ -8,6 +8,8 @@ type Props = {
   variant?: AgentId;
   pose?: Pose;
   emphasis?: Emphasis;
+  fightState?: FighterState;
+  fighterAction?: FighterAction;
   flipped?: boolean;
   className?: string;
 };
@@ -57,13 +59,7 @@ const poseMap: Record<
   },
 };
 
-function Accessory({
-  variant,
-  color,
-}: {
-  variant: AgentId;
-  color: string;
-}) {
+function Accessory({ variant, color }: { variant: AgentId; color: string }) {
   if (variant === "Bruiser") {
     return (
       <>
@@ -72,23 +68,14 @@ function Accessory({
       </>
     );
   }
-
   if (variant === "Gremlin") {
     return (
       <>
-        <path
-          d="M114 54L128 44L122 60L136 56L118 74"
-          fill="none"
-          stroke={color}
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M114 54L128 44L122 60L136 56L118 74" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M42 48L34 38L48 40" stroke={color} strokeWidth="4" strokeLinecap="round" />
       </>
     );
   }
-
   if (variant === "Scholar") {
     return (
       <>
@@ -97,7 +84,6 @@ function Accessory({
       </>
     );
   }
-
   return (
     <>
       <path d="M112 38L118 52L132 54L120 62L124 76L112 68L100 76L104 62L92 54L106 52Z" fill={color} opacity="0.22" />
@@ -106,13 +92,7 @@ function Accessory({
   );
 }
 
-function EmphasisLayer({
-  emphasis,
-  color,
-}: {
-  emphasis: Emphasis;
-  color: string;
-}) {
+function EmphasisLayer({ emphasis, color }: { emphasis: Emphasis; color: string }) {
   if (emphasis === "ring") {
     return (
       <>
@@ -121,7 +101,6 @@ function EmphasisLayer({
       </>
     );
   }
-
   if (emphasis === "burst") {
     return (
       <>
@@ -133,7 +112,6 @@ function EmphasisLayer({
       </>
     );
   }
-
   if (emphasis === "spotlight") {
     return (
       <>
@@ -142,7 +120,30 @@ function EmphasisLayer({
       </>
     );
   }
+  return null;
+}
 
+function ImpactFX({ fightState, fighterAction, color }: { fightState: FighterState; fighterAction: FighterAction; color: string }) {
+  if (fighterAction === "jab") {
+    return <path className="agent-stickman__fx agent-stickman__fx--jab" d="M112 54L145 46" stroke={color} strokeWidth="6" strokeLinecap="round" />;
+  }
+  if (fighterAction === "lunge") {
+    return <path className="agent-stickman__fx agent-stickman__fx--lunge" d="M118 56L150 42L144 66" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (fighterAction === "block") {
+    return <path className="agent-stickman__fx agent-stickman__fx--block" d="M110 46L124 60L110 74L96 60Z" fill="none" stroke={color} strokeWidth="4" strokeLinejoin="round" />;
+  }
+  if (fighterAction === "stumble" || fightState === "rocked") {
+    return <path className="agent-stickman__fx agent-stickman__fx--stars" d="M112 18L118 28L130 30L122 38L124 50L112 44L100 50L102 38L94 30L106 28Z" fill={color} opacity="0.28" />;
+  }
+  if (fighterAction === "taunt" || fightState === "crowd_favorite") {
+    return (
+      <>
+        <circle className="agent-stickman__fx agent-stickman__fx--crowd" cx="38" cy="34" r="5" fill={color} opacity="0.24" />
+        <circle className="agent-stickman__fx agent-stickman__fx--crowd agent-stickman__fx--crowd2" cx="126" cy="26" r="4" fill={color} opacity="0.2" />
+      </>
+    );
+  }
   return null;
 }
 
@@ -151,6 +152,8 @@ export function AgentStickman({
   variant = "Bruiser",
   pose = "idle",
   emphasis = "none",
+  fightState = "guarded",
+  fighterAction = "idle",
   flipped = false,
   className,
 }: Props) {
@@ -165,15 +168,15 @@ export function AgentStickman({
       data-pose={pose}
       data-emphasis={emphasis}
       data-variant={variant}
+      data-fight-state={fightState}
+      data-fighter-action={fighterAction}
     >
       <g className="agent-stickman__aura">
         <EmphasisLayer emphasis={emphasis} color={color} />
       </g>
       <ellipse className="agent-stickman__shadow" cx="80" cy="136" rx="34" ry="8" fill="#1e1b16" opacity="0.12" />
-      <g
-        className="agent-stickman__frame"
-        transform={flipped ? "translate(160 0) scale(-1 1)" : undefined}
-      >
+      <g className="agent-stickman__frame" transform={flipped ? "translate(160 0) scale(-1 1)" : undefined}>
+        <ImpactFX fightState={fightState} fighterAction={fighterAction} color={color} />
         <g className="agent-stickman__head" transform={`rotate(${body.head} 80 32)`}>
           <circle cx="80" cy="32" r="14" stroke="#1e1b16" strokeWidth="5" />
           <path d="M64 27C74 16 87 16 96 27" stroke={color} strokeWidth="6" strokeLinecap="round" />
