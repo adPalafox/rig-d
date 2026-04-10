@@ -2,46 +2,43 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AgentStickman } from "@/components/AgentStickman";
-import { MatchSnapshot, MatchState } from "@/lib/types";
+import {
+  LIVE_COMMAND_DEFINITIONS,
+  OPENING_STYLE_OPTIONS,
+  PRESSURE_RULE_OPTIONS,
+  RISK_LEVEL_OPTIONS,
+} from "@/lib/content";
+import { DebatePhase, MatchSnapshot, MatchState, SetupPlan } from "@/lib/types";
 import { countdownRemaining } from "@/lib/utils";
 
 type Props = {
   initialSnapshot: MatchSnapshot;
 };
 
-type CoachingDraft = {
-  gamePlan: string;
-  tone: string;
-  whenAttacked: string;
-  avoidThisMistake: string;
-  secretNote: string;
+type StageKey = "lobby" | "setup" | "live" | "reveal" | "abandoned";
+
+const initialSetupDraft: SetupPlan = {
+  openingStyle: OPENING_STYLE_OPTIONS[0]!.id,
+  pressureRule: PRESSURE_RULE_OPTIONS[0]!.id,
+  riskLevel: RISK_LEVEL_OPTIONS[1]!.id,
+  signatureLine: "",
 };
 
-type StageKey = "lobby" | "coaching" | "resolving" | "reveal" | "abandoned";
-
-const initialDraft: CoachingDraft = {
-  gamePlan: "",
-  tone: "",
-  whenAttacked: "",
-  avoidThisMistake: "",
-  secretNote: "",
-};
-
-const resolvingStates: MatchState[] = [
-  "coaching_locked",
-  "executing_match",
-  "judging",
-];
 const revealStates: MatchState[] = ["reveal_ready", "completed"];
 
 function formatStateLabel(state: string) {
   return state.replaceAll("_", " ");
 }
 
+function formatPhaseLabel(phase: DebatePhase | null) {
+  if (!phase) return "Fight";
+  return `${phase[0]!.toUpperCase()}${phase.slice(1)}`;
+}
+
 function getStageKey(state: MatchState): StageKey {
   if (state === "abandoned") return "abandoned";
-  if (state === "coaching_open") return "coaching";
-  if (resolvingStates.includes(state)) return "resolving";
+  if (state === "setup_open") return "setup";
+  if (state === "live_phase_open" || state === "judging") return "live";
   if (revealStates.includes(state)) return "reveal";
   return "lobby";
 }
@@ -49,19 +46,35 @@ function getStageKey(state: MatchState): StageKey {
 function getStageOrder(stage: StageKey) {
   if (stage === "abandoned") return -1;
   if (stage === "lobby") return 0;
-  if (stage === "coaching") return 1;
-  if (stage === "resolving") return 2;
+  if (stage === "setup") return 1;
+  if (stage === "live") return 2;
   return 3;
+}
+
+function scoreMomentum(left: number, right: number) {
+  const diff = clampMomentum(left - right);
+  return {
+    left: clampPercentage(50 + diff * 2),
+    right: clampPercentage(50 - diff * 2),
+  };
+}
+
+function clampMomentum(value: number) {
+  return Math.max(-20, Math.min(20, value));
+}
+
+function clampPercentage(value: number) {
+  return Math.max(10, Math.min(90, value));
 }
 
 export function RoomClient({ initialSnapshot }: Props) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [draft, setDraft] = useState(initialDraft);
+  const [setupDraft, setSetupDraft] = useState(initialSetupDraft);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(
-    countdownRemaining(initialSnapshot.match.coachingDeadlineAt),
+    countdownRemaining(initialSnapshot.match.setupDeadlineAt ?? initialSnapshot.match.phaseDeadlineAt),
   );
 
   useEffect(() => {
@@ -69,7 +82,7 @@ export function RoomClient({ initialSnapshot }: Props) {
   }, [initialSnapshot]);
 
   useEffect(() => {
-    setDraft(initialDraft);
+    setSetupDraft(initialSetupDraft);
     setError("");
     setMessage("");
   }, [snapshot.match.id]);
@@ -82,96 +95,47 @@ export function RoomClient({ initialSnapshot }: Props) {
       if (!response.ok) return;
       const json = (await response.json()) as MatchSnapshot;
       setSnapshot(json);
-      setSecondsLeft(countdownRemaining(json.match.coachingDeadlineAt));
-    }, 1200);
+      setSecondsLeft(
+        countdownRemaining(json.match.setupDeadlineAt ?? json.match.phaseDeadlineAt),
+      );
+    }, 900);
 
     return () => window.clearInterval(interval);
   }, [snapshot.match.id]);
 
   useEffect(() => {
-    setSecondsLeft(countdownRemaining(snapshot.match.coachingDeadlineAt));
-    if (!snapshot.match.coachingDeadlineAt) return;
+    const deadline = snapshot.match.setupDeadlineAt ?? snapshot.match.phaseDeadlineAt;
+    setSecondsLeft(countdownRemaining(deadline));
+    if (!deadline) return;
 
     const interval = window.setInterval(() => {
-      setSecondsLeft(countdownRemaining(snapshot.match.coachingDeadlineAt));
+      setSecondsLeft(countdownRemaining(deadline));
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [snapshot.match.coachingDeadlineAt]);
+  }, [snapshot.match.setupDeadlineAt, snapshot.match.phaseDeadlineAt]);
 
   const viewer = useMemo(
-    () =>
-      snapshot.players.find(
-        (player) => player.id === snapshot.viewerPlayerId,
-      ) ?? null,
+    () => snapshot.players.find((player) => player.id === snapshot.viewerPlayerId) ?? null,
     [snapshot],
   );
   const opponent = useMemo(
-    () =>
-      snapshot.players.find(
-        (player) => player.id !== snapshot.viewerPlayerId,
-      ) ?? null,
+    () => snapshot.players.find((player) => player.id !== snapshot.viewerPlayerId) ?? null,
     [snapshot],
   );
-
   const stageKey = getStageKey(snapshot.match.state);
   const canReady = stageKey === "lobby" && viewer !== null;
-  const coachingOpen = stageKey === "coaching";
-  const resolving = stageKey === "resolving";
+  const setupOpen = stageKey === "setup";
+  const liveOpen = snapshot.match.state === "live_phase_open";
+  const fightStage = stageKey === "live";
   const matchResolved = stageKey === "reveal";
-  const showTurnFeed = resolving || matchResolved;
-  const showEventLog = resolving || matchResolved || stageKey === "abandoned";
-  const turnProgress = Math.min(snapshot.turnLog.length, 6);
+  const viewerMomentum = viewer?.momentum ?? 0;
+  const opponentMomentum = opponent?.momentum ?? 0;
+  const momentumSplit = scoreMomentum(viewerMomentum, opponentMomentum);
   const winner =
-    snapshot.players.find(
-      (player) => player.id === snapshot.judgeResult?.winnerPlayerId,
-    ) ?? null;
-  const viewerAgent = viewer?.agent ?? null;
-  const opponentAgent = opponent?.agent ?? null;
-  const viewerColor = viewerAgent?.bandanaColor ?? "#1e1b16";
-  const opponentColor = opponentAgent?.bandanaColor ?? "#5e574d";
+    snapshot.players.find((player) => player.id === snapshot.judgeResult?.winnerPlayerId) ?? null;
 
-  const phaseCopy = {
-    lobby: {
-      label: "Lobby",
-      title: opponent
-        ? "Get both coaches locked in"
-        : "Waiting for the second player",
-      description: opponent
-        ? "Both players need to ready up before the arena assigns agents and opens coaching."
-        : "Share the room link, get your opponent in, then lock in when both sides are present.",
-    },
-    coaching: {
-      label: "Coaching",
-      title: viewer?.submittedCoaching
-        ? "Your coaching is locked"
-        : "Coach your fighter for the upset",
-      description: viewer?.submittedCoaching
-        ? "Your side is set. The room will move once the other coach locks in or the timer expires."
-        : "Give one clean plan, one pressure response, and one mistake to avoid. The best coaching is sharp, not crowded.",
-    },
-    resolving: {
-      label: "Arena Resolving",
-      title: "The match is unfolding",
-      description:
-        "The system is running opening, rebuttal, and closing turns, then judging the full exchange.",
-    },
-    reveal: {
-      label: "Reveal",
-      title: winner ? `${winner.name} won the room` : "The result is in",
-      description:
-        snapshot.judgeResult?.reasonSummary ??
-        "The final score is ready for both sides.",
-    },
-    abandoned: {
-      label: "Match Interrupted",
-      title: "The room was abandoned during coaching",
-      description:
-        "One player dropped for too long, so this round did not resolve.",
-    },
-  }[stageKey];
-
-  async function runAction(path: string, body?: unknown) {
+  async function runPost(path: string, body?: unknown) {
     setLoading(true);
     setError("");
     setMessage("");
@@ -182,9 +146,7 @@ export function RoomClient({ initialSnapshot }: Props) {
         headers: { "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const json = (await response.json()) as MatchSnapshot & {
-        error?: string;
-      };
+      const json = (await response.json()) as MatchSnapshot & { error?: string };
       if (!response.ok) {
         throw new Error(json.error ?? "Action failed.");
       }
@@ -208,65 +170,100 @@ export function RoomClient({ initialSnapshot }: Props) {
     }
   }
 
+  const phaseCopy = {
+    lobby: {
+      label: "Lobby",
+      title: opponent ? "Get both coaches in the room" : "Waiting for the second coach",
+      description: opponent
+        ? "Both coaches ready up, then the corner gets a short setup window before the bell."
+        : "Share the invite link, pull in your opponent, and get the room hot.",
+    },
+    setup: {
+      label: "Setup",
+      title: viewer?.submittedSetup ? "Your corner plan is locked" : "Set the corner plan fast",
+      description: viewer?.submittedSetup
+        ? "Your setup is in. Once the other side locks or the timer burns out, the fight opens."
+        : "Pick an opening, a pressure rule, and how reckless you want to be. The live corner does the rest.",
+    },
+    live: {
+      label: snapshot.match.state === "judging" ? "Judging" : formatPhaseLabel(snapshot.match.currentPhase),
+      title:
+        snapshot.match.state === "judging"
+          ? "Scoring the chaos"
+          : `${formatPhaseLabel(snapshot.match.currentPhase)} bell is live`,
+      description:
+        snapshot.match.state === "judging"
+          ? "The fight is over. The judge is deciding what mattered."
+          : "Both corners can bark commands at any time. Spend energy well or burn your fighter out.",
+    },
+    reveal: {
+      label: "Reveal",
+      title: winner ? `${winner.name} won the room` : "The room has a winner",
+      description:
+        snapshot.judgeResult?.coachingImpactSummary ??
+        "The final result is in and the corner impact is visible.",
+    },
+    abandoned: {
+      label: "Interrupted",
+      title: "The room broke before the fight landed",
+      description: "One coach dropped for too long and the round was abandoned.",
+    },
+  }[stageKey];
+
   return (
     <div className="page-shell page-shell--room">
-      {stageKey === "lobby" ? (
-        <section className="surface surface--secondary room-summary">
-          <div className="room-summary__header">
-            <div>
-              <span className="kicker">Private Room</span>
-              <h1 className="room-title">Room {snapshot.room.code}</h1>
-              <p className="summary-copy">{snapshot.match.topic.prompt}</p>
-            </div>
-            <div className="status-strip">
-              <span className="status-badge">Phase: {phaseCopy.label}</span>
-              <span className="status-badge">
-                Matchup: {viewer?.name ?? "You"} vs{" "}
-                {opponent?.name ?? "Waiting for opponent"}
-              </span>
-            </div>
+      <section className="surface surface--secondary room-summary">
+        <div className="room-summary__header">
+          <div>
+            <span className="kicker">Private Room</span>
+            <h1 className="room-title">Room {snapshot.room.code}</h1>
+            <p className="summary-copy">{snapshot.match.topic.prompt}</p>
           </div>
+          <div className="status-strip">
+            <span className="status-badge">Phase: {phaseCopy.label}</span>
+            <span className="status-badge">
+              Matchup: {viewer?.name ?? "You"} vs {opponent?.name ?? "Waiting for opponent"}
+            </span>
+          </div>
+        </div>
 
-          <div className="summary-grid">
-            <div className="summary-box summary-box--wide">
-              <small>Share link</small>
-              <strong className="inline-code room-link">
-                {snapshot.room.shareUrl}
-              </strong>
-              <div className="summary-actions">
-                <button
-                  className="ghost-button button--small"
-                  type="button"
-                  onClick={() => void copyShareLink()}
-                >
-                  Copy link
-                </button>
-              </div>
-            </div>
-            <div className="summary-box">
-              <small>Topic</small>
-              <strong>{snapshot.match.topic.title}</strong>
-              <p>{snapshot.match.topic.tags.join(" · ")}</p>
-            </div>
-            <div className="summary-box">
-              <small>You</small>
-              <strong>{viewer?.name ?? "Observer"}</strong>
-              <p>{viewer?.ready ? "Ready locked." : "Not ready yet."}</p>
-            </div>
-            <div className="summary-box">
-              <small>Opponent</small>
-              <strong>{opponent?.name ?? "Open slot"}</strong>
-              <p>
-                {opponent
-                  ? opponent.ready
-                    ? "Ready locked."
-                    : "Not ready yet."
-                  : "Waiting to join."}
-              </p>
+        <div className="summary-grid">
+          <div className="summary-box summary-box--wide">
+            <small>Share link</small>
+            <strong className="inline-code room-link">{snapshot.room.shareUrl}</strong>
+            <div className="summary-actions">
+              <button className="ghost-button button--small" type="button" onClick={() => void copyShareLink()}>
+                Copy link
+              </button>
             </div>
           </div>
-        </section>
-      ) : null}
+          <div className="summary-box">
+            <small>Topic</small>
+            <strong>{snapshot.match.topic.title}</strong>
+            <p>{snapshot.match.topic.tags.join(" · ")}</p>
+          </div>
+          <div className="summary-box">
+            <small>Series</small>
+            <strong>{snapshot.room.rivalry.roundsPlayed} rounds</strong>
+            <p>
+              {snapshot.room.rivalry.currentStreakPlayerId
+                ? `${snapshot.players.find((player) => player.id === snapshot.room.rivalry.currentStreakPlayerId)?.name ?? "Someone"} on ${snapshot.room.rivalry.currentStreakCount}`
+                : "No streak yet."}
+            </p>
+          </div>
+          <div className="summary-box">
+            <small>Clock</small>
+            <strong>{secondsLeft}s</strong>
+            <p>
+              {setupOpen
+                ? "Short corner setup."
+                : fightStage
+                  ? `${formatPhaseLabel(snapshot.match.currentPhase)} window`
+                  : "Waiting on action."}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <div className="room-shell">
         <main className="stage-stack">
@@ -277,9 +274,9 @@ export function RoomClient({ initialSnapshot }: Props) {
                 <h2 className="stage-title">{phaseCopy.title}</h2>
                 <p className="subtitle">{phaseCopy.description}</p>
               </div>
-              {coachingOpen ? (
+              {(setupOpen || fightStage) && snapshot.match.state !== "judging" ? (
                 <div className="countdown-card">
-                  <small>Coaching clock</small>
+                  <small>{setupOpen ? "Setup clock" : "Bell clock"}</small>
                   <strong>{secondsLeft}s</strong>
                 </div>
               ) : null}
@@ -288,8 +285,8 @@ export function RoomClient({ initialSnapshot }: Props) {
             <div className="phase-track" aria-label="Match progress">
               {[
                 { key: "lobby" as StageKey, label: "Lobby" },
-                { key: "coaching" as StageKey, label: "Coaching" },
-                { key: "resolving" as StageKey, label: "Arena" },
+                { key: "setup" as StageKey, label: "Setup" },
+                { key: "live" as StageKey, label: "Fight" },
                 { key: "reveal" as StageKey, label: "Reveal" },
               ].map((step) => {
                 const stepState =
@@ -302,10 +299,7 @@ export function RoomClient({ initialSnapshot }: Props) {
                         : "pending";
 
                 return (
-                  <div
-                    className={`phase-step phase-step--${stepState}`}
-                    key={step.key}
-                  >
+                  <div className={`phase-step phase-step--${stepState}`} key={step.key}>
                     <span>{step.label}</span>
                   </div>
                 );
@@ -320,30 +314,23 @@ export function RoomClient({ initialSnapshot }: Props) {
                 <div className="stage-subpanel">
                   <h3 className="section-title">What happens next</h3>
                   <ul className="list">
-                    <li>Two players need to be in the room.</li>
-                    <li>Both players must ready up.</li>
-                    <li>
-                      Agents are assigned and the 60-second coaching phase
-                      begins.
-                    </li>
+                    <li>Two coaches join the room.</li>
+                    <li>Both sides ready up.</li>
+                    <li>The room gets a short setup window before the live corner starts.</li>
                   </ul>
                 </div>
                 <div className="action-card">
                   <h3 className="section-title">Ready checkpoint</h3>
                   <p className="muted">
                     {opponent
-                      ? "Once both sides are ready, the room rolls forward immediately."
-                      : "Share the link first if your opponent is not here yet."}
+                      ? "Once both sides are ready, the fighter draw and corner setup happen immediately."
+                      : "Share the room link first if your opponent is not here yet."}
                   </p>
                   {canReady ? (
                     <button
                       className="button button--full"
                       type="button"
-                      onClick={() =>
-                        void runAction(
-                          `/api/matches/${snapshot.match.id}/ready`,
-                        )
-                      }
+                      onClick={() => void runPost(`/api/matches/${snapshot.match.id}/ready`)}
                       disabled={loading || viewer?.ready}
                     >
                       {viewer?.ready ? "Ready locked" : "I am ready"}
@@ -353,18 +340,16 @@ export function RoomClient({ initialSnapshot }: Props) {
               </div>
             ) : null}
 
-            {stageKey === "coaching" && viewer ? (
-              <div className="coach-workspace">
+            {setupOpen && viewer ? (
+              <div className="coach-workspace coach-workspace--setup">
                 <div className="coach-agent-card">
-                  <div
-                    className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}
-                  >
+                  <div className={`agent-card agent-card--${viewer.agent?.id ?? "Bruiser"} agent-card--spotlight`}>
                     <div className="agent-stage">
                       <AgentStickman
                         className="agent-stickman agent-stickman--hero"
                         color={viewer.agent?.bandanaColor ?? "#1e1b16"}
                         variant={viewer.agent?.id ?? "Bruiser"}
-                        pose={viewer.submittedCoaching ? "victory" : "duel"}
+                        pose={viewer.submittedSetup ? "victory" : "duel"}
                         emphasis="spotlight"
                       />
                     </div>
@@ -376,124 +361,112 @@ export function RoomClient({ initialSnapshot }: Props) {
                       <span className="meta-pill">{viewer.name}</span>
                     </div>
                     <p className="muted">
-                      {viewer.agent?.flavor ??
-                        "Your agent will appear as soon as both sides are ready."}
+                      {viewer.agent?.flavor ?? "The fighter appears as soon as both sides are ready."}
                     </p>
                     {viewer.agent ? (
-                      <ul className="list">
-                        {viewer.agent.visibleTraits.map((trait) => (
-                          <li key={trait}>{trait}</li>
-                        ))}
-                      </ul>
+                      <>
+                        <ul className="list">
+                          {viewer.agent.visibleTraits.map((trait) => (
+                            <li key={trait}>{trait}</li>
+                          ))}
+                        </ul>
+                        <div className="coach-tip-grid">
+                          <div className="proof-card">
+                            <small>Hint</small>
+                            <strong>{viewer.agent.publicHint}</strong>
+                          </div>
+                          <div className="proof-card proof-card--warning">
+                            <small>Danger</small>
+                            <strong>{viewer.agent.publicDanger}</strong>
+                          </div>
+                        </div>
+                      </>
                     ) : null}
                   </div>
                 </div>
 
                 <div className="coach-form-shell">
-                  {viewer.submittedCoaching ? (
+                  {viewer.submittedSetup ? (
                     <div className="success-box">
-                      Your coaching is locked. The room is now waiting on the
-                      other side or the timer to expire.
+                      Your setup is locked. The fight opens when the other corner locks or the timer runs out.
                     </div>
                   ) : (
-                    <div className="form">
+                    <div className="form form--setup">
                       <div className="form-cluster">
                         <div>
-                          <h3 className="section-title">Strategy</h3>
-                          <p className="muted">
-                            Set the thesis and delivery style the agent should
-                            hold onto.
-                          </p>
+                          <h3 className="section-title">Opening style</h3>
+                          <p className="muted">How should the fighter enter the room?</p>
+                        </div>
+                        <div className="choice-grid">
+                          {OPENING_STYLE_OPTIONS.map((option) => (
+                            <button
+                              className={`choice-chip ${setupDraft.openingStyle === option.id ? "choice-chip--selected" : ""}`}
+                              key={option.id}
+                              type="button"
+                              onClick={() => setSetupDraft((prev) => ({ ...prev, openingStyle: option.id }))}
+                            >
+                              <strong>{option.label}</strong>
+                              <span>{option.description}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Pressure rule</h3>
+                          <p className="muted">What should the corner keep yelling when things get ugly?</p>
+                        </div>
+                        <div className="choice-grid">
+                          {PRESSURE_RULE_OPTIONS.map((option) => (
+                            <button
+                              className={`choice-chip ${setupDraft.pressureRule === option.id ? "choice-chip--selected" : ""}`}
+                              key={option.id}
+                              type="button"
+                              onClick={() => setSetupDraft((prev) => ({ ...prev, pressureRule: option.id }))}
+                            >
+                              <strong>{option.label}</strong>
+                              <span>{option.description}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Risk level</h3>
+                          <p className="muted">How reckless should this corner be?</p>
+                        </div>
+                        <div className="choice-grid">
+                          {RISK_LEVEL_OPTIONS.map((option) => (
+                            <button
+                              className={`choice-chip ${setupDraft.riskLevel === option.id ? "choice-chip--selected" : ""}`}
+                              key={option.id}
+                              type="button"
+                              onClick={() => setSetupDraft((prev) => ({ ...prev, riskLevel: option.id }))}
+                            >
+                              <strong>{option.label}</strong>
+                              <span>{option.description}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="form-cluster">
+                        <div>
+                          <h3 className="section-title">Signature line</h3>
+                          <p className="muted">Optional. Give the fighter one sticky phrase to keep returning to.</p>
                         </div>
                         <div className="form-field">
-                          <label htmlFor="gamePlan">Game plan</label>
-                          <textarea
-                            id="gamePlan"
-                            value={draft.gamePlan}
-                            onChange={(event) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                gamePlan: event.target.value,
-                              }))
-                            }
-                            placeholder="One clean thesis, one concrete example, keep the opening short."
-                          />
-                        </div>
-                        <div className="form-field">
-                          <label htmlFor="tone">Tone</label>
+                          <label htmlFor="signatureLine">Signature line</label>
                           <input
-                            id="tone"
-                            value={draft.tone}
+                            id="signatureLine"
+                            value={setupDraft.signatureLine ?? ""}
+                            maxLength={64}
                             onChange={(event) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                tone: event.target.value,
-                              }))
+                              setSetupDraft((prev) => ({ ...prev, signatureLine: event.target.value }))
                             }
-                            placeholder="Calm, surgical, no grandstanding."
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-cluster">
-                        <div>
-                          <h3 className="section-title">Pressure response</h3>
-                          <p className="muted">
-                            Tell the agent how to answer attacks and what
-                            failure mode to avoid.
-                          </p>
-                        </div>
-                        <div className="form-field">
-                          <label htmlFor="whenAttacked">When attacked</label>
-                          <textarea
-                            id="whenAttacked"
-                            value={draft.whenAttacked}
-                            onChange={(event) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                whenAttacked: event.target.value,
-                              }))
-                            }
-                            placeholder="Call out missing evidence, then return to the core example."
-                          />
-                        </div>
-                        <div className="form-field">
-                          <label htmlFor="avoid">Avoid this mistake</label>
-                          <textarea
-                            id="avoid"
-                            value={draft.avoidThisMistake}
-                            onChange={(event) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                avoidThisMistake: event.target.value,
-                              }))
-                            }
-                            placeholder="Do not ramble. Do not exaggerate. Stay on one lane."
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-cluster">
-                        <div>
-                          <h3 className="section-title">
-                            Optional secret note
-                          </h3>
-                          <p className="muted">
-                            Add a little hidden edge if you have one.
-                          </p>
-                        </div>
-                        <div className="form-field">
-                          <label htmlFor="secret">Secret note</label>
-                          <textarea
-                            id="secret"
-                            value={draft.secretNote}
-                            onChange={(event) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                secretNote: event.target.value,
-                              }))
-                            }
-                            placeholder="Optional hidden spice."
+                            placeholder="If they want the future, make them answer the street today."
                           />
                         </div>
                       </div>
@@ -503,15 +476,12 @@ export function RoomClient({ initialSnapshot }: Props) {
                           className="button"
                           type="button"
                           onClick={async () => {
-                            const result = await runAction(
-                              `/api/matches/${snapshot.match.id}/coaching`,
-                              draft,
-                            );
-                            if (result) setMessage("Coaching locked in.");
+                            const result = await runPost(`/api/matches/${snapshot.match.id}/coaching`, setupDraft);
+                            if (result) setMessage("Corner plan locked.");
                           }}
                           disabled={loading}
                         >
-                          Lock coaching
+                          Lock corner plan
                         </button>
                       </div>
                     </div>
@@ -520,86 +490,94 @@ export function RoomClient({ initialSnapshot }: Props) {
               </div>
             ) : null}
 
-            {stageKey === "resolving" ? (
-              <div className="stage-content">
-                <div className="stage-subpanel">
-                  <h3 className="section-title">Arena progress</h3>
-                  <div className="versus-scene versus-scene--compact">
-                    <AgentStickman
-                      className="agent-stickman agent-stickman--duel"
-                      color={viewerColor}
-                      variant={viewerAgent?.id ?? "Bruiser"}
-                      pose="duel"
-                      emphasis="ring"
-                    />
-                    <div className="versus-scene__badge">vs</div>
-                    <AgentStickman
-                      className="agent-stickman agent-stickman--duel"
-                      color={opponentColor}
-                      variant={opponentAgent?.id ?? "Showman"}
-                      pose="duel"
-                      emphasis="ring"
-                      flipped
-                    />
+            {fightStage && viewer ? (
+              <div className="live-corner-shell">
+                <div className="momentum-panel">
+                  <div className="momentum-panel__labels">
+                    <span>{viewer.name}</span>
+                    <strong>{snapshot.match.state === "judging" ? "Fight closed" : `${formatPhaseLabel(snapshot.match.currentPhase)} in play`}</strong>
+                    <span>{opponent?.name ?? "Opponent"}</span>
                   </div>
-                  <div className="metric-row">
-                    <div className="metric-box">
-                      <small>Turns resolved</small>
-                      <strong>{turnProgress} / 6</strong>
-                    </div>
-                    <div className="metric-box">
-                      <small>Judge status</small>
-                      <strong>
-                        {snapshot.match.state === "judging"
-                          ? "Scoring now"
-                          : "Waiting on full exchange"}
-                      </strong>
-                    </div>
+                  <div className="momentum-bar" aria-label="Momentum bar">
+                    <div className="momentum-bar__lane momentum-bar__lane--left" style={{ width: `${momentumSplit.left}%` }} />
+                    <div className="momentum-bar__lane momentum-bar__lane--right" style={{ width: `${momentumSplit.right}%` }} />
+                  </div>
+                  <div className="momentum-panel__scores">
+                    <span>{viewerMomentum > 0 ? `+${viewerMomentum}` : viewerMomentum}</span>
+                    <span>{opponentMomentum > 0 ? `+${opponentMomentum}` : opponentMomentum}</span>
                   </div>
                 </div>
-                <div className="action-card">
-                  <h3 className="section-title">What to watch</h3>
-                  <p className="muted">
-                    The live feed below is the narrative view. The room event
-                    log is still available, but it is no longer the main thing
-                    to track.
-                  </p>
+
+                <div className="energy-grid">
+                  {[viewer, opponent].filter(Boolean).map((player) => (
+                    <div className="metric-box" key={player!.id}>
+                      <small>{player!.id === viewer.id ? "Your corner" : "Opponent corner"}</small>
+                      <strong>{player!.cornerEnergy}/5 energy</strong>
+                      <p>
+                        {player!.activeCommandFeed[0]
+                          ? `Last bark: ${player!.activeCommandFeed[0]!.label}`
+                          : "No command yet."}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="command-grid">
+                  {LIVE_COMMAND_DEFINITIONS.map((command) => (
+                    <button
+                      className={`command-chip ${viewer.cornerEnergy < command.cost || !liveOpen ? "command-chip--disabled" : ""}`}
+                      key={command.id}
+                      type="button"
+                      disabled={loading || !liveOpen || viewer.cornerEnergy < command.cost}
+                      onClick={async () => {
+                        const result = await runPost(`/api/matches/${snapshot.match.id}/command`, {
+                          commandId: command.id,
+                        });
+                        if (result) setMessage(`${command.label} fired.`);
+                      }}
+                    >
+                      <strong>{command.label}</strong>
+                      <span>{command.description}</span>
+                      <small>{command.cost} energy</small>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="stage-content">
+                  <div className="stage-subpanel">
+                    <h3 className="section-title">What to do</h3>
+                    <p className="muted">
+                      Spam loses value. Time the right nudge when you are slipping or when the other side is wobbling.
+                    </p>
+                  </div>
+                  <div className="action-card">
+                    <h3 className="section-title">Current phase</h3>
+                    <p className="muted">
+                      {snapshot.match.state === "judging"
+                        ? "The commands are closed and the judge is sorting the damage."
+                        : `${formatPhaseLabel(snapshot.match.currentPhase)} is live for both corners.`}
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
 
-            {stageKey === "reveal" && snapshot.judgeResult ? (
+            {matchResolved && snapshot.judgeResult ? (
               <div className="reveal-stack">
                 <div className="reveal-banner">
                   <div className="reveal-banner__sceneWrap">
                     <div className="reveal-banner__scene">
                       <AgentStickman
                         className="agent-stickman agent-stickman--reveal"
-                        color={
-                          snapshot.players.find(
-                            (player) => player.id === winner?.id,
-                          )?.agent?.bandanaColor ?? viewerColor
-                        }
-                        variant={
-                          winner?.agent?.id ?? viewerAgent?.id ?? "Bruiser"
-                        }
+                        color={winner?.agent?.bandanaColor ?? "#1e1b16"}
+                        variant={winner?.agent?.id ?? "Bruiser"}
                         pose="victory"
                         emphasis="burst"
                       />
                       <AgentStickman
                         className="agent-stickman agent-stickman--reveal agent-stickman--loser"
-                        color={
-                          snapshot.players.find(
-                            (player) => player.id !== winner?.id,
-                          )?.agent?.bandanaColor ?? opponentColor
-                        }
-                        variant={
-                          snapshot.players.find(
-                            (player) => player.id !== winner?.id,
-                          )?.agent?.id ??
-                          opponentAgent?.id ??
-                          "Gremlin"
-                        }
+                        color={snapshot.players.find((player) => player.id !== winner?.id)?.agent?.bandanaColor ?? "#5e574d"}
+                        variant={snapshot.players.find((player) => player.id !== winner?.id)?.agent?.id ?? "Gremlin"}
                         pose="slump"
                         emphasis="ring"
                         flipped
@@ -609,17 +587,28 @@ export function RoomClient({ initialSnapshot }: Props) {
                   <div className="reveal-banner__summary">
                     <div className="confidence-pill">
                       <small>Judge confidence</small>
-                      <strong>
-                        {Math.round(snapshot.judgeResult.confidence * 100)}%
-                      </strong>
+                      <strong>{Math.round(snapshot.judgeResult.confidence * 100)}%</strong>
                     </div>
                     <small>Winner</small>
                     <h3>{winner?.name ?? "Unknown"}</h3>
-                    <p className="muted">
-                      {snapshot.judgeResult.reasonSummary}
-                    </p>
+                    <p className="muted">{snapshot.judgeResult.reasonSummary}</p>
+                    <p className="muted reveal-impact-copy">{snapshot.judgeResult.coachingImpactSummary}</p>
                   </div>
                 </div>
+
+                {snapshot.judgeResult.decisiveMoment ? (
+                  <div className="proof-card proof-card--decisive">
+                    <small>Decisive moment</small>
+                    <strong>{snapshot.judgeResult.decisiveMoment.summary}</strong>
+                    <p>
+                      {snapshot.judgeResult.decisiveMoment.playerName} swung the {snapshot.judgeResult.decisiveMoment.phase} with{" "}
+                      {snapshot.judgeResult.decisiveMoment.commands
+                        .map((commandId) => LIVE_COMMAND_DEFINITIONS.find((command) => command.id === commandId)?.label ?? commandId)
+                        .join(" + ")}
+                      .
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="score-grid">
                   {snapshot.players.map((player) => (
@@ -629,12 +618,8 @@ export function RoomClient({ initialSnapshot }: Props) {
                       <div className="divider" />
                       <p>Expected: {player.expectedScore ?? "?"}</p>
                       <p>Actual: {player.actualScore ?? "?"}</p>
-                      <p
-                        className={`score-value ${(player.rigScore ?? 0) >= 0 ? "score-value--positive" : "score-value--negative"}`}
-                      >
-                        {player.rigScore !== null
-                          ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}`
-                          : "?"}
+                      <p className={`score-value ${(player.rigScore ?? 0) >= 0 ? "score-value--positive" : "score-value--negative"}`}>
+                        {player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"}
                       </p>
                       <p>{player.rigLabel ?? "Unscored"}</p>
                     </div>
@@ -645,12 +630,10 @@ export function RoomClient({ initialSnapshot }: Props) {
                   <button
                     className="button"
                     type="button"
-                    onClick={() =>
-                      void runAction(`/api/rooms/${snapshot.room.id}/rematch`)
-                    }
+                    onClick={() => void runPost(`/api/rooms/${snapshot.room.id}/rematch`)}
                     disabled={loading}
                   >
-                    Run it back
+                    New topic, same grudge
                   </button>
                 </div>
               </div>
@@ -660,19 +643,14 @@ export function RoomClient({ initialSnapshot }: Props) {
               <div className="stage-content">
                 <div className="stage-subpanel">
                   <h3 className="section-title">Recovery</h3>
-                  <p className="muted">
-                    The round stopped because a player disconnected for too long
-                    during coaching.
-                  </p>
+                  <p className="muted">The round stopped because a coach disconnected for too long.</p>
                 </div>
                 <div className="action-card">
                   <h3 className="section-title">Next move</h3>
                   <button
                     className="button button--full"
                     type="button"
-                    onClick={() =>
-                      void runAction(`/api/rooms/${snapshot.room.id}/rematch`)
-                    }
+                    onClick={() => void runPost(`/api/rooms/${snapshot.room.id}/rematch`)}
                     disabled={loading}
                   >
                     Start a fresh round
@@ -682,37 +660,52 @@ export function RoomClient({ initialSnapshot }: Props) {
             ) : null}
           </section>
 
-          {showTurnFeed ? (
+          {fightStage || matchResolved ? (
             <section className="surface surface--utility utility-panel">
               <div className="utility-header">
-                <h3 className="section-title">Live match feed</h3>
+                <h3 className="section-title">Corner feed</h3>
+                <p className="muted">Everyone sees the barks. That is the point.</p>
+              </div>
+              <div className="timeline">
+                {snapshot.commandFeed.length === 0 ? (
+                  <p className="muted">No live commands yet.</p>
+                ) : (
+                  snapshot.commandFeed.map((command) => (
+                    <article className="turn-card turn-card--command" key={command.id}>
+                      <h4>
+                        {command.playerName} · {command.phase} · {command.label}
+                      </h4>
+                      <p>
+                        Cost {command.cost}. Energy left {command.energyAfter}.
+                      </p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {(fightStage || matchResolved) && snapshot.turnLog.length > 0 ? (
+            <section className="surface surface--utility utility-panel">
+              <div className="utility-header">
+                <h3 className="section-title">Fight transcript</h3>
                 <p className="muted">
-                  Round-by-round output from the two agents.
+                  Live turns resolve after each bell. The transcript shows which corner calls actually stuck.
                 </p>
               </div>
               <div className="timeline">
-                {snapshot.turnLog.length === 0 ? (
-                  <p className="muted">
-                    No turns yet. The arena is still getting ready.
-                  </p>
-                ) : (
-                  snapshot.turnLog.map((turn) => {
-                    const player = snapshot.players.find(
-                      (entry) => entry.id === turn.playerId,
-                    );
-                    return (
-                      <article className="turn-card" key={turn.id}>
-                        <h4>
-                          {player?.name} · {turn.agentId} · {turn.phase}
-                        </h4>
-                        <p>{turn.content}</p>
-                        <p className="turn-score">
-                          Micro score: {turn.microScore}
-                        </p>
-                      </article>
-                    );
-                  })
-                )}
+                {snapshot.turnLog.map((turn) => (
+                  <article className="turn-card" key={turn.id}>
+                    <h4>
+                      {turn.playerName} · {turn.agentId} · {turn.phase}
+                    </h4>
+                    <p>{turn.content}</p>
+                    <p className="turn-score">
+                      {turn.swingTag}
+                      {matchResolved ? ` · Score ${turn.microScore}` : ""}
+                    </p>
+                  </article>
+                ))}
               </div>
             </section>
           ) : null}
@@ -723,8 +716,7 @@ export function RoomClient({ initialSnapshot }: Props) {
                 <summary>Rubric breakdown</summary>
                 <div className="detail-grid">
                   {snapshot.players.map((player) => {
-                    const categories =
-                      snapshot.judgeResult?.scoresByCategory[player.id];
+                    const categories = snapshot.judgeResult?.scoresByCategory[player.id];
                     return (
                       <div className="event-card" key={player.id}>
                         <h4>{player.name} rubric</h4>
@@ -741,7 +733,7 @@ export function RoomClient({ initialSnapshot }: Props) {
             </section>
           ) : null}
 
-          {showEventLog ? (
+          {(fightStage || matchResolved || stageKey === "abandoned") ? (
             <section className="surface surface--utility utility-panel">
               <details className="detail-disclosure">
                 <summary>Room event log</summary>
@@ -761,73 +753,56 @@ export function RoomClient({ initialSnapshot }: Props) {
         <aside className="side-stack">
           <section className="surface surface--secondary roster-panel entry-module">
             <div className="utility-header utility-header--stacked">
-              <h3 className="section-title">Coaches</h3>
+              <h3 className="section-title">Corners</h3>
               <p className="muted">
-                {stageKey === "coaching"
-                  ? "Visible traits are on display. Hidden modifiers still have to be discovered through coaching."
-                  : "This roster changes emphasis as the room moves from setup to reveal."}
+                Setup shows the fighter’s public lane. The live fight shows whether the coach can actually steer.
               </p>
             </div>
             <div className="roster-list">
               {snapshot.players.map((player) => (
                 <div
-                  className={`agent-card roster-card agent-card--${player.agent?.id ?? "Bruiser"} ${
-                    player.id === snapshot.viewerPlayerId
-                      ? "agent-card--viewer"
-                      : ""
-                  }`}
+                  className={`agent-card roster-card agent-card--${player.agent?.id ?? "Bruiser"} ${player.id === snapshot.viewerPlayerId ? "agent-card--viewer" : ""}`}
                   key={player.id}
                 >
                   <div className="roster-card__identity">
-                    <small>
-                      {player.id === snapshot.viewerPlayerId
-                        ? "You"
-                        : "Opponent"}
-                    </small>
+                    <small>{player.id === snapshot.viewerPlayerId ? "You" : "Opponent"}</small>
                     <h3>{player.name}</h3>
                     <p className="roster-card__state">
-                      {stageKey === "reveal"
-                        ? `${player.rigLabel ?? "Unscored"} · Rig score ${
-                            player.rigScore !== null
-                              ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}`
-                              : "?"
-                          }`
+                      {matchResolved
+                        ? `${player.rigLabel ?? "Unscored"} · Rig score ${player.rigScore !== null ? `${player.rigScore > 0 ? "+" : ""}${player.rigScore}` : "?"}`
                         : player.agent
                           ? `Agent: ${player.agent.name}`
                           : "Agent pending"}
                     </p>
                   </div>
                   <p className="muted roster-card__summary">
-                    {stageKey === "reveal"
-                      ? `${player.rigLabel ?? "Unscored"} · Expected ${player.expectedScore ?? "?"} · Actual ${
-                          player.actualScore ?? "?"
-                        }`
-                      : (player.agent?.flavor ??
-                        "Agent assignment unlocks when both players are ready.")}
+                    {matchResolved
+                      ? `${player.rigLabel ?? "Unscored"} · Expected ${player.expectedScore ?? "?"} · Actual ${player.actualScore ?? "?"}`
+                      : player.agent?.publicHint ?? "Agent assignment unlocks once both sides are ready."}
                   </p>
                   <div className="status-strip roster-card__chips">
-                    <span className="status-badge">
-                      {player.ready ? "Ready" : "Not ready"}
-                    </span>
-                    {coachingOpen || resolving || matchResolved ? (
+                    <span className="status-badge">{player.ready ? "Ready" : "Not ready"}</span>
+                    {(setupOpen || fightStage || matchResolved) ? (
                       <span className="status-badge">
-                        {player.submittedCoaching
-                          ? "Coaching locked"
-                          : "Coaching open"}
+                        {player.submittedSetup ? "Setup locked" : "Setup open"}
                       </span>
+                    ) : null}
+                    {(fightStage || matchResolved) ? (
+                      <span className="status-badge">Energy {player.cornerEnergy}</span>
                     ) : null}
                     {player.disconnected ? (
-                      <span className="status-badge status-badge--warning">
-                        Disconnected
-                      </span>
+                      <span className="status-badge status-badge--warning">Disconnected</span>
                     ) : null}
                   </div>
-                  {player.agent && stageKey !== "reveal" ? (
-                    <ul className="list">
-                      {player.agent.visibleTraits.map((trait) => (
-                        <li key={trait}>{trait}</li>
-                      ))}
-                    </ul>
+                  {player.agent && !matchResolved ? (
+                    <>
+                      <ul className="list">
+                        {player.agent.visibleTraits.map((trait) => (
+                          <li key={trait}>{trait}</li>
+                        ))}
+                      </ul>
+                      <p className="muted roster-card__danger">Danger: {player.agent.publicDanger}</p>
+                    </>
                   ) : null}
                 </div>
               ))}

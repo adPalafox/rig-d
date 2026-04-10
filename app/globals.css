@@ -970,6 +970,8 @@ ul {
 .agent-stickman {
   width: 92px;
   height: 92px;
+  overflow: visible;
+  filter: drop-shadow(0 10px 18px rgba(30, 27, 22, 0.12));
 }
 
 .agent-stickman--scene {
@@ -1003,6 +1005,107 @@ ul {
   right: -24px;
   bottom: -4px;
   transform: scale(0.82);
+}
+
+.agent-stickman__frame,
+.agent-stickman__head,
+.agent-stickman__body,
+.agent-stickman__aura,
+.agent-stickman__accessory,
+.agent-stickman__shadow,
+.agent-stickman__limb {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.agent-stickman__frame {
+  animation: stickman-float 2.8s ease-in-out infinite;
+}
+
+.agent-stickman__head {
+  transform-origin: 80px 32px;
+}
+
+.agent-stickman__limb--left-arm,
+.agent-stickman__limb--right-arm {
+  transform-origin: 80px 68px;
+}
+
+.agent-stickman__limb--left-leg,
+.agent-stickman__limb--right-leg {
+  transform-origin: 80px 96px;
+}
+
+.agent-stickman__shadow {
+  animation: stickman-shadow 2.8s ease-in-out infinite;
+}
+
+.agent-stickman__aura {
+  animation: stickman-aura 2.4s ease-in-out infinite;
+}
+
+.agent-stickman[data-pose="idle"] .agent-stickman__head {
+  animation: stickman-nod 3.2s ease-in-out infinite;
+}
+
+.agent-stickman[data-pose="duel"] .agent-stickman__frame {
+  animation: stickman-duel 0.9s ease-in-out infinite alternate;
+}
+
+.agent-stickman[data-pose="duel"] .agent-stickman__head {
+  animation: stickman-scan 1.2s ease-in-out infinite;
+}
+
+.agent-stickman[data-pose="duel"] .agent-stickman__limb--right-arm {
+  animation: stickman-feint-arm 0.72s ease-in-out infinite alternate;
+}
+
+.agent-stickman[data-pose="duel"] .agent-stickman__limb--left-arm {
+  animation: stickman-feint-arm 0.72s ease-in-out infinite alternate-reverse;
+}
+
+.agent-stickman[data-pose="victory"] .agent-stickman__frame {
+  animation: stickman-victory-bounce 0.92s cubic-bezier(0.24, 0.82, 0.32, 1) infinite;
+}
+
+.agent-stickman[data-pose="victory"] .agent-stickman__aura {
+  animation: stickman-burst 1.1s ease-in-out infinite;
+}
+
+.agent-stickman[data-pose="victory"] .agent-stickman__accessory {
+  animation: stickman-spark 1.4s ease-in-out infinite alternate;
+}
+
+.agent-stickman[data-pose="slump"] .agent-stickman__frame {
+  animation: stickman-slump 2.6s ease-in-out infinite;
+}
+
+.agent-stickman[data-pose="slump"] .agent-stickman__head {
+  animation: stickman-sigh 2s ease-in-out infinite;
+}
+
+.agent-stickman[data-emphasis="ring"] .agent-stickman__aura {
+  animation: stickman-ring 2.2s linear infinite;
+}
+
+.agent-stickman[data-emphasis="burst"] .agent-stickman__aura {
+  animation: stickman-burst 0.9s ease-in-out infinite;
+}
+
+.agent-stickman[data-emphasis="spotlight"] .agent-stickman__aura {
+  animation: stickman-spotlight 2.6s ease-in-out infinite;
+}
+
+.agent-stage:hover .agent-stickman__frame,
+.roster-showcase:hover .agent-stickman__frame,
+.arena-fighter:hover .agent-stickman__frame {
+  animation-duration: 0.7s;
+}
+
+.agent-stage:hover .agent-stickman,
+.roster-showcase:hover .agent-stickman,
+.arena-fighter:hover .agent-stickman {
+  filter: drop-shadow(0 18px 28px rgba(30, 27, 22, 0.18));
 }
 
 .agent-stage {
@@ -1042,6 +1145,16 @@ ul {
   text-transform: uppercase;
 }
 
+.arena-fighter:hover .arena-fighter__label,
+.roster-showcase:hover .roster-showcase__copy {
+  transform: translateY(-2px);
+}
+
+.arena-fighter__label,
+.roster-showcase__copy {
+  transition: transform 140ms ease;
+}
+
 .reveal-banner__scene {
   position: relative;
   display: grid;
@@ -1063,6 +1176,180 @@ ul {
     rgba(255, 255, 255, 0.44);
   padding: 10px;
   overflow: hidden;
+}
+
+.reveal-banner__scene::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 8px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(30, 27, 22, 0.12);
+  filter: blur(12px);
+}
+
+@keyframes stickman-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes stickman-shadow {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scaleX(0.92);
+  }
+}
+
+@keyframes stickman-aura {
+  0%,
+  100% {
+    opacity: 0.96;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes stickman-nod {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes stickman-duel {
+  0% {
+    transform: translate(-1px, 1px) rotate(-1deg);
+  }
+  100% {
+    transform: translate(1px, -1px) rotate(1deg);
+  }
+}
+
+@keyframes stickman-scan {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes stickman-feint-arm {
+  0% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes stickman-victory-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-8px) scale(1.02);
+  }
+  70% {
+    transform: translateY(0) scale(0.99);
+  }
+}
+
+@keyframes stickman-burst {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes stickman-spark {
+  0% {
+    transform: rotate(-2deg) translateY(0);
+  }
+  100% {
+    transform: rotate(3deg) translateY(-2px);
+  }
+}
+
+@keyframes stickman-slump {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+@keyframes stickman-sigh {
+  0%,
+  100% {
+    transform: rotate(7deg);
+  }
+  50% {
+    transform: rotate(11deg);
+  }
+}
+
+@keyframes stickman-ring {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(6deg) scale(1.02);
+  }
+  100% {
+    transform: rotate(12deg) scale(1);
+  }
+}
+
+@keyframes stickman-spotlight {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04) translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-stickman__frame,
+  .agent-stickman__head,
+  .agent-stickman__body,
+  .agent-stickman__aura,
+  .agent-stickman__accessory,
+  .agent-stickman__shadow,
+  .agent-stickman__limb {
+    animation: none !important;
+  }
 }
 
 .reveal-banner__summary {
@@ -1325,5 +1612,153 @@ ul {
 
   .reveal-banner__summary p {
     max-width: none;
+  }
+}
+
+.coach-workspace--setup,
+.live-corner-shell,
+.coach-tip-grid,
+.choice-grid,
+.command-grid,
+.energy-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.coach-tip-grid,
+.energy-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form--setup {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice-chip,
+.command-chip {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  text-align: left;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+  background: rgba(255, 255, 255, 0.64);
+  color: var(--ink);
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.choice-chip span,
+.command-chip span,
+.command-chip small {
+  color: var(--muted);
+}
+
+.choice-chip:hover,
+.command-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(30, 27, 22, 0.2);
+  box-shadow: 0 10px 24px rgba(76, 47, 8, 0.1);
+}
+
+.choice-chip--selected {
+  border-color: rgba(32, 117, 199, 0.42);
+  background: rgba(32, 117, 199, 0.08);
+}
+
+.command-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.command-chip {
+  min-height: 134px;
+}
+
+.command-chip--disabled {
+  opacity: 0.58;
+}
+
+.momentum-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(30, 27, 22, 0.1);
+}
+
+.momentum-panel__labels,
+.momentum-panel__scores {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.momentum-panel__labels strong {
+  font-size: 1rem;
+}
+
+.momentum-bar {
+  display: flex;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(30, 27, 22, 0.08);
+}
+
+.momentum-bar__lane {
+  transition: width 180ms ease;
+}
+
+.momentum-bar__lane--left {
+  background: linear-gradient(90deg, rgba(32, 117, 199, 0.75), rgba(46, 145, 89, 0.72));
+}
+
+.momentum-bar__lane--right {
+  background: linear-gradient(90deg, rgba(209, 75, 50, 0.76), rgba(219, 159, 23, 0.82));
+}
+
+.turn-card--command {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.reveal-impact-copy,
+.roster-card__danger {
+  margin-top: var(--space-2);
+}
+
+.proof-card--warning {
+  background: rgba(209, 75, 50, 0.08);
+}
+
+.proof-card--decisive {
+  background: rgba(32, 117, 199, 0.08);
+}
+
+@media (max-width: 980px) {
+  .choice-grid,
+  .command-grid,
+  .coach-tip-grid,
+  .energy-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .choice-grid,
+  .command-grid,
+  .coach-tip-grid,
+  .energy-grid {
+    grid-template-columns: 1fr;
   }
 }

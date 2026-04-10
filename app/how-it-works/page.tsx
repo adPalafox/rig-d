@@ -7,8 +7,8 @@ export default function HowItWorksPage() {
         <span className="kicker">Game Details</span>
         <h1 className="title title--details">How Rig D Agent works</h1>
         <p className="subtitle">
-          The homepage now stays focused on the pitch and first action. This page carries the mechanics, flow, and MVP
-          constraints for players who want the full picture before they queue a room.
+          The homepage now stays focused on the pitch and first action. This page carries the mechanics, flow, and
+          current room rules for players who want the full picture before they queue a room.
         </p>
         <div className="hero-actions">
           <Link className="ghost-button" href="/">
@@ -29,14 +29,14 @@ export default function HowItWorksPage() {
               <p>Once both sides are present, they ready up and the arena assigns fighters.</p>
             </div>
             <div className="proof-card">
-              <small>2. Coaching starts</small>
-              <strong>60 seconds to shape the fighter</strong>
-              <p>Players give a thesis, tone, pressure response, and one mistake to avoid.</p>
+              <small>2. Corner setup</small>
+              <strong>Roughly 18 seconds to set the lane</strong>
+              <p>Players pick an opening style, pressure rule, and risk level before the bell.</p>
             </div>
             <div className="proof-card">
-              <small>3. Debate resolves</small>
-              <strong>Opening, rebuttal, closing</strong>
-              <p>The match runs automatically and then the judge scores both the winner and overperformance.</p>
+              <small>3. Fight goes live</small>
+              <strong>Opening, rebuttal, closing with live corner calls</strong>
+              <p>Both coaches spend corner energy on quick commands while momentum swings in public.</p>
             </div>
           </div>
         </article>
@@ -47,6 +47,7 @@ export default function HowItWorksPage() {
             <li>Only private 1v1 rooms.</li>
             <li>Only one mode: Debate Duel.</li>
             <li>Anonymous cookie-based sessions, no account wall.</li>
+            <li>Live corner commands are public and bounded by an energy meter.</li>
             <li>Mock AI runs by default; server-side OpenAI activates with env config.</li>
           </ul>
         </article>
@@ -70,8 +71,8 @@ export default function HowItWorksPage() {
             </div>
             <div className="proof-card">
               <small>Room feel</small>
-              <strong>The game rewards smart constraint</strong>
-              <p>Short, specific coaching usually outperforms bloated instructions.</p>
+              <strong>The game rewards timing, not command spam</strong>
+              <p>Fast setup matters, but the live corner wins or loses the room.</p>
             </div>
           </div>
         </article>

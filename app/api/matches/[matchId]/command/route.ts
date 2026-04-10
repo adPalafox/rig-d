@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrigin } from "@/lib/http";
 import { getViewerId } from "@/lib/session";
-import { submitCoaching } from "@/lib/store";
-import { parseSetupPlan } from "@/lib/validation";
+import { submitLiveCommand } from "@/lib/store";
+import { parseLiveCommand } from "@/lib/validation";
 
 export async function POST(
   request: NextRequest,
@@ -16,11 +16,11 @@ export async function POST(
     const { matchId } = await context.params;
     const origin = await getOrigin(request);
     const body = await request.json();
-    const setupPlan = parseSetupPlan(body);
-    return NextResponse.json(await submitCoaching(matchId, viewerId, setupPlan, origin));
+    const commandId = parseLiveCommand(body);
+    return NextResponse.json(await submitLiveCommand(matchId, viewerId, commandId, origin));
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message ?? "Failed to submit setup." },
+      { error: (error as Error).message ?? "Failed to use live command." },
       { status: 400 },
     );
   }

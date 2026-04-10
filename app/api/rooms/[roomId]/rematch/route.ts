@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { roomId } = await context.params;
     const origin = await getOrigin(request);
-    return NextResponse.json(startRematch(roomId, origin));
+    return NextResponse.json(await startRematch(roomId, origin));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message ?? "Failed to start rematch." },

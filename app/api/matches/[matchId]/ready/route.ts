@@ -14,7 +14,7 @@ export async function POST(
     }
     const { matchId } = await context.params;
     const origin = await getOrigin(request);
-    return NextResponse.json(setReady(matchId, viewerId, origin));
+    return NextResponse.json(await setReady(matchId, viewerId, origin));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message ?? "Failed to mark ready." },

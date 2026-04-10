@@ -14,7 +14,7 @@ export default async function RoomPage({
   const origin = await getOrigin();
 
   try {
-    const snapshot = buildSnapshot(roomId, viewerId, origin);
+    const snapshot = await buildSnapshot(roomId, viewerId, origin);
     return <RoomClient initialSnapshot={snapshot} />;
   } catch {
     notFound();

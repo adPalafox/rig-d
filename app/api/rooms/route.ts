@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const existingId = cookieStore.get(PLAYER_COOKIE)?.value;
     const player = getPlayer(existingId) ?? createPlayer(name);
     const origin = await getOrigin(request);
-    const snapshot = createRoom(player.id, origin);
+    const snapshot = await createRoom(player.id, origin);
     const response = NextResponse.json(snapshot);
     response.cookies.set(PLAYER_COOKIE, player.id, {
       httpOnly: true,

@@ -158,24 +158,37 @@ export function AgentStickman({
 
   return (
     <svg
-      className={className ?? "agent-stickman"}
+      className={`${className ?? "agent-stickman"} agent-stickman--pose-${pose} agent-stickman--emphasis-${emphasis}`}
       viewBox="0 0 160 160"
       fill="none"
       aria-hidden="true"
+      data-pose={pose}
+      data-emphasis={emphasis}
+      data-variant={variant}
     >
-      <EmphasisLayer emphasis={emphasis} color={color} />
-      <g transform={flipped ? "translate(160 0) scale(-1 1)" : undefined}>
-        <g transform={`rotate(${body.head} 80 32)`}>
+      <g className="agent-stickman__aura">
+        <EmphasisLayer emphasis={emphasis} color={color} />
+      </g>
+      <ellipse className="agent-stickman__shadow" cx="80" cy="136" rx="34" ry="8" fill="#1e1b16" opacity="0.12" />
+      <g
+        className="agent-stickman__frame"
+        transform={flipped ? "translate(160 0) scale(-1 1)" : undefined}
+      >
+        <g className="agent-stickman__head" transform={`rotate(${body.head} 80 32)`}>
           <circle cx="80" cy="32" r="14" stroke="#1e1b16" strokeWidth="5" />
           <path d="M64 27C74 16 87 16 96 27" stroke={color} strokeWidth="6" strokeLinecap="round" />
         </g>
-        <path d={body.torso} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
-        <path d={body.leftArm} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
-        <path d={body.rightArm} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
-        <path d={body.leftLeg} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
-        <path d={body.rightLeg} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
-        <Accessory variant={variant} color={color} />
-        <path d="M72 38H88" stroke="#1e1b16" strokeWidth="3.5" strokeLinecap="round" opacity="0.7" />
+        <g className="agent-stickman__body">
+          <path d={body.torso} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
+          <path className="agent-stickman__limb agent-stickman__limb--left-arm" d={body.leftArm} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
+          <path className="agent-stickman__limb agent-stickman__limb--right-arm" d={body.rightArm} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
+          <path className="agent-stickman__limb agent-stickman__limb--left-leg" d={body.leftLeg} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
+          <path className="agent-stickman__limb agent-stickman__limb--right-leg" d={body.rightLeg} stroke="#1e1b16" strokeWidth="5" strokeLinecap="round" />
+          <g className="agent-stickman__accessory">
+            <Accessory variant={variant} color={color} />
+          </g>
+          <path d="M72 38H88" stroke="#1e1b16" strokeWidth="3.5" strokeLinecap="round" opacity="0.7" />
+        </g>
       </g>
     </svg>
   );

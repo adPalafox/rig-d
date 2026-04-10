@@ -11,7 +11,7 @@ export async function GET(
     const { matchId } = await context.params;
     const viewerId = await getViewerId();
     const origin = await getOrigin(request);
-    return NextResponse.json(getMatchSnapshot(matchId, viewerId, origin));
+    return NextResponse.json(await getMatchSnapshot(matchId, viewerId, origin));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message ?? "Match not found." },

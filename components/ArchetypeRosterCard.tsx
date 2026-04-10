@@ -40,6 +40,9 @@ export function ArchetypeRosterCard({ agent }: Props) {
         <p>
           <strong>Coaching reward:</strong> {agent.hiddenUpside}
         </p>
+        <p>
+          <strong>Public warning:</strong> {agent.publicDanger}
+        </p>
       </div>
     </article>
   );

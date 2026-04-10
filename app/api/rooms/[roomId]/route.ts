@@ -11,7 +11,7 @@ export async function GET(
     const { roomId } = await context.params;
     const viewerId = await getViewerId();
     const origin = await getOrigin(request);
-    return NextResponse.json(buildSnapshot(roomId, viewerId, origin));
+    return NextResponse.json(await buildSnapshot(roomId, viewerId, origin));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message ?? "Room not found." },

@@ -14,8 +14,8 @@ export default function HomePage() {
             <span className="kicker">Rig D Agent</span>
             <h1 className="title">Coach the wrong fighter into the right win.</h1>
             <p className="subtitle">
-              A private 1v1 stick-fighter debate arena where the best feeling is turning the unstable side into the
-              dangerous one.
+              A private 1v1 stick-fighter debate arena where the setup is brief and the real game is yelling the right
+              thing from the corner at the right moment.
             </p>
             <div className="hero-actions hero-actions--subtle">
               <Link className="ghost-button" href="#fighters">
@@ -59,7 +59,7 @@ export default function HomePage() {
           <h2 className="section-title">Meet the fighters</h2>
           <p className="muted">
             Each archetype is readable at a glance. The skill ceiling comes from figuring out which weakness can be
-            turned into a weapon.
+            turned into a weapon once the live corner gets messy.
           </p>
         </div>
         <div className="roster-showcase-grid">
